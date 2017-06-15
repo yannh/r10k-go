@@ -10,8 +10,8 @@ type PuppetFileParser struct {
 }
 
 func (p *PuppetFileParser) parseModule(line string) (PuppetModule, error) {
-  var name, repoUrl, moduleType, installPath, ref, targetFolder string
-  var module *GitModule
+	var name, repoUrl, moduleType, installPath, ref, targetFolder string
+	var module *GitModule
 
 	if !strings.HasPrefix(line, "mod") {
 		return &GitModule{}, errors.New("Error: Module definition not starting with mod")
@@ -25,7 +25,7 @@ func (p *PuppetFileParser) parseModule(line string) (PuppetModule, error) {
 			})[1]
 
 		case strings.HasPrefix(part, ":git"):
-      moduleType = "git"
+			moduleType = "git"
 			repoUrl = strings.Trim(strings.Split(part, "=>")[1], " \"'")
 
 		case strings.HasPrefix(part, ":install_path"):
@@ -36,16 +36,16 @@ func (p *PuppetFileParser) parseModule(line string) (PuppetModule, error) {
 		}
 	}
 
-  if (moduleType == "git") {
-    module = &GitModule {name, repoUrl, installPath, ref, targetFolder}
-  }
+	if moduleType == "git" {
+		module = &GitModule{name, repoUrl, installPath, ref, targetFolder}
+	}
 
-  return module, nil
+	return module, nil
 }
 
 func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup) error {
-  opts := make(map[string]string)
-  modules := make([]PuppetModule, 0, 5)
+	opts := make(map[string]string)
+	modules := make([]PuppetModule, 0, 5)
 
 	s := bufio.NewScanner(puppetFile)
 	s.Split(bufio.ScanLines)
@@ -74,30 +74,29 @@ func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetMo
 				})[1]
 
 			case strings.HasPrefix(block, "mod"):
-        module, _ := p.parseModule(block)
+				module, _ := p.parseModule(block)
 				modules = append(modules, module)
 			}
 			block = ""
 		}
 	}
 
-  for _, module := range modules {
-    module = p.compute(module, opts)
-    modulesChan <- module
-    wg.Add(1)
-  }
+	for _, module := range modules {
+		module = p.compute(module, opts)
+		modulesChan <- module
+		wg.Add(1)
+	}
 
-  return nil
+	return nil
 }
 
 func (p *PuppetFileParser) compute(m PuppetModule, opts map[string]string) PuppetModule {
-  modulePath, ok := opts["modulePath"]
-  if (!ok) {
-    modulePath = "./modules/"
-  }
-  splitPath := strings.Split(m.Name(), "/")
-  folderName := splitPath[len(splitPath)-1]
-  m.SetTargetFolder(modulePath+folderName)
-  return m
+	modulePath, ok := opts["modulePath"]
+	if !ok {
+		modulePath = "./modules/"
+	}
+	splitPath := strings.Split(m.Name(), "/")
+	folderName := splitPath[len(splitPath)-1]
+	m.SetTargetFolder(modulePath + folderName)
+	return m
 }
-
