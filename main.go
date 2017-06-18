@@ -8,7 +8,7 @@ import "github.com/docopt/docopt-go"
 
 type PuppetModule interface {
 	Name() string
-	Download() string
+	Download() (string, error)
 	SetTargetFolder(string)
 	TargetFolder() string
 }
@@ -17,11 +17,24 @@ type Parser interface {
 	parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup) error
 }
 
+type DownloadError interface {
+    error
+    Retryable() bool
+}
+
 func cloneWorker(c chan PuppetModule, wg *sync.WaitGroup) {
 	parser := MetadataParser{}
+  maxTries := 3
 
 	for m := range c {
-		target := m.Download()
+		target, err := m.Download()
+    if (err != nil) {
+      derr, ok := err.(DownloadError)
+      for i:= 0; i < maxTries-1 && ok && derr.Retryable() ; i++ {
+        target, err = m.Download()
+        derr, ok = err.(DownloadError)
+      }
+    }
 
 		if file, err := os.Open(target + "/metadata.json"); err == nil {
 			defer file.Close()
@@ -41,7 +54,7 @@ Usage:
 
 Options:
   -h --help     Show this screen.`
-	numWorkers := 2
+	numWorkers := 4
 
 	docopt.Parse(usage, nil, true, "r10k-go", false)
 
