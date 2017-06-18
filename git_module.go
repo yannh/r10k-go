@@ -12,15 +12,15 @@ type GitModule struct {
 }
 
 type GitDownloadError struct {
-  err error
+	err error
 }
 
 func (gde *GitDownloadError) Error() string {
-  return gde.err.Error()
+	return gde.err.Error()
 }
 
 func (gde *GitDownloadError) Retryable() bool {
-  return true
+	return true
 }
 
 func (m *GitModule) Name() string {
@@ -44,12 +44,10 @@ func (m *GitModule) Download() (string, error) {
 		cmd = exec.Command("git", "clone", "--branch", m.ref, m.repoUrl, m.targetFolder)
 	}
 
-  if err := cmd.Run(); err != nil {
-    fmt.Println( "Error downloading "+m.repoUrl)
-    return "", &GitDownloadError{err: err}
-  }
-
-	fmt.Println("Downloaded " + m.repoUrl + " to " + m.targetFolder)
+	if err := cmd.Run(); err != nil {
+		fmt.Println("Error downloading " + m.repoUrl)
+		return "", &GitDownloadError{err: err}
+	}
 
 	return m.targetFolder, nil
 }

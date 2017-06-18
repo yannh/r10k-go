@@ -4,6 +4,8 @@ import "sync"
 import "os"
 import "log"
 import "io"
+import "time"
+import "fmt"
 import "github.com/docopt/docopt-go"
 
 type PuppetModule interface {
@@ -18,23 +20,33 @@ type Parser interface {
 }
 
 type DownloadError interface {
-    error
-    Retryable() bool
+	error
+	Retryable() bool
 }
 
 func cloneWorker(c chan PuppetModule, wg *sync.WaitGroup) {
 	parser := MetadataParser{}
-  maxTries := 3
+	maxTries := 3
+	retryDelay := 3 * time.Second
 
 	for m := range c {
+		if _, err := os.Stat(m.TargetFolder()); err == nil {
+			fmt.Println(m.Name() + " already present on the filesystem, skipping...")
+			wg.Done()
+			continue
+		}
+
 		target, err := m.Download()
-    if (err != nil) {
-      derr, ok := err.(DownloadError)
-      for i:= 0; i < maxTries-1 && ok && derr.Retryable() ; i++ {
-        target, err = m.Download()
-        derr, ok = err.(DownloadError)
-      }
-    }
+		if err != nil {
+			derr, ok := err.(DownloadError)
+			for i := 0; i < maxTries-1 && ok && derr.Retryable(); i++ {
+				time.Sleep(retryDelay)
+				target, err = m.Download()
+				derr, ok = err.(DownloadError)
+			}
+		}
+
+		fmt.Println("Downloaded " + m.Name() + " to " + m.TargetFolder())
 
 		if file, err := os.Open(target + "/metadata.json"); err == nil {
 			defer file.Close()
