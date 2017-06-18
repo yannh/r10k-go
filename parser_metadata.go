@@ -30,24 +30,3 @@ func (p MetadataParser) parse(r io.Reader, modulesChan chan PuppetModule, wg *sy
 
 	return nil
 }
-
-// func main() {
-//   file, err := os.Open("modules/puppetlabs-apache/metadata.json")
-//   if err != nil {
-//       log.Fatal(err)
-//   }
-//   defer file.Close()
-//
-//   modulesChan := make(chan PuppetModule)
-//   var wg sync.WaitGroup
-//
-//   for w := 1; w <= 4; w++ {
-//     go cloneWorker(modulesChan, &wg)
-//   }
-//
-//   parser := MetadataParser{}
-// 	parser.parse(file, modulesChan, &wg)
-//
-//   wg.Wait()
-//   close(modulesChan)
-// }

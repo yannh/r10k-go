@@ -29,7 +29,7 @@ type ModuleReleases struct {
 	}
 }
 
-func (m *ForgeModule) Download() string {
+func (m *ForgeModule) Download() (string, error) {
 	forgeUrl := "https://forgeapi.puppetlabs.com:443/v3/"
 
 	url := forgeUrl + "releases?" +
@@ -50,5 +50,5 @@ func (m *ForgeModule) Download() string {
 		fmt.Println("Need to download " + mr.Results[0].File_uri)
 	}
 
-	return ""
+	return "", nil
 }

@@ -11,6 +11,18 @@ type GitModule struct {
 	targetFolder string
 }
 
+type GitDownloadError struct {
+  err error
+}
+
+func (gde *GitDownloadError) Error() string {
+  return gde.err.Error()
+}
+
+func (gde *GitDownloadError) Retryable() bool {
+  return true
+}
+
 func (m *GitModule) Name() string {
 	return m.name
 }
@@ -23,7 +35,7 @@ func (m *GitModule) TargetFolder() string {
 	return m.targetFolder
 }
 
-func (m *GitModule) Download() string {
+func (m *GitModule) Download() (string, error) {
 	var cmd *exec.Cmd
 
 	if m.ref == "" {
@@ -31,9 +43,13 @@ func (m *GitModule) Download() string {
 	} else {
 		cmd = exec.Command("git", "clone", "--branch", m.ref, m.repoUrl, m.targetFolder)
 	}
-	cmd.Run()
-	cmd.Wait()
+
+  if err := cmd.Run(); err != nil {
+    fmt.Println( "Error downloading "+m.repoUrl)
+    return "", &GitDownloadError{err: err}
+  }
+
 	fmt.Println("Downloaded " + m.repoUrl + " to " + m.targetFolder)
 
-	return m.targetFolder
+	return m.targetFolder, nil
 }

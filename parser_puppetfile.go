@@ -83,8 +83,8 @@ func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetMo
 
 	for _, module := range modules {
 		module = p.compute(module, opts)
-		modulesChan <- module
 		wg.Add(1)
+		modulesChan <- module
 	}
 
 	return nil
