@@ -17,11 +17,12 @@ type ForgeModule struct {
 }
 
 type ForgeDownloadError struct {
-	err error
+	err       error
+	retryable bool
 }
 
 func (fde *ForgeDownloadError) Error() string {
-	return "POUET"
+	return ""
 }
 
 func (fde *ForgeDownloadError) Retryable() bool {
@@ -129,10 +130,10 @@ func (m *ForgeModule) Download() (string, error) {
 		forgeArchive, _ := http.Get(forgeUrl + mr.Results[0].File_uri)
 		defer forgeArchive.Body.Close()
 		if err = m.Gunzip(forgeArchive.Body, m.TargetFolder()); err != nil {
-			fmt.Println("Error processing url: " + err.Error())
-			return "", &ForgeDownloadError{err: err}
+			return "", &ForgeDownloadError{err: fmt.Errorf("Error processing url: %s", err.Error())}
 		}
+	} else {
+		return "", &ForgeDownloadError{err: fmt.Errorf("Could not find module %s", m.Name())}
 	}
-
 	return "", nil
 }
