@@ -4,6 +4,7 @@ import "strings"
 import "errors"
 import "bufio"
 import "io"
+import "fmt"
 import "sync"
 
 type PuppetFileParser struct {
@@ -11,13 +12,13 @@ type PuppetFileParser struct {
 
 func (p *PuppetFileParser) parseModule(line string) (PuppetModule, error) {
 	var name, repoUrl, moduleType, installPath, ref, targetFolder string
-	var module *GitModule
 
 	if !strings.HasPrefix(line, "mod") {
 		return &GitModule{}, errors.New("Error: Module definition not starting with mod")
 	}
 
 	for _, part := range strings.Split(line, ",") {
+		part = strings.TrimSpace(part)
 		switch {
 		case strings.HasPrefix(part, "mod"):
 			name = strings.FieldsFunc(part, func(r rune) bool {
@@ -37,21 +38,19 @@ func (p *PuppetFileParser) parseModule(line string) (PuppetModule, error) {
 	}
 
 	if moduleType == "git" {
-		module = &GitModule{name, repoUrl, installPath, ref, targetFolder}
-	}
-
-	return module, nil
+		return &GitModule{name, repoUrl, installPath, ref, targetFolder}, nil
+	} else {
+    return nil, errors.New("Unknown module type")
+  }
 }
 
-func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup) error {
+func (p *PuppetFileParser) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[string]string) {
 	opts := make(map[string]string)
 	modules := make([]PuppetModule, 0, 5)
 
-	s := bufio.NewScanner(puppetFile)
-	s.Split(bufio.ScanLines)
-
 	for block := ""; s.Scan(); {
 		line := s.Text()
+    fmt.Println(line)
 		line = strings.Split(s.Text(), "#")[0] // Remove comments
 		line = strings.TrimSpace(line)
 
@@ -80,6 +79,16 @@ func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetMo
 			block = ""
 		}
 	}
+
+  return modules, opts
+}
+
+func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup) error {
+
+	s := bufio.NewScanner(puppetFile)
+	s.Split(bufio.ScanLines)
+
+  modules, opts := p.parsePuppetFile(s)
 
 	for _, module := range modules {
 		module = p.compute(module, opts)
