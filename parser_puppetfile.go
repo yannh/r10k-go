@@ -4,7 +4,6 @@ import "strings"
 import "errors"
 import "bufio"
 import "io"
-import "fmt"
 import "sync"
 
 type PuppetFileParser struct {
@@ -13,6 +12,7 @@ type PuppetFileParser struct {
 func (p *PuppetFileParser) parseModule(line string) (PuppetModule, error) {
 	var name, repoUrl, moduleType, installPath, ref, targetFolder string
 
+	line = strings.TrimSpace(line)
 	if !strings.HasPrefix(line, "mod") {
 		return &GitModule{}, errors.New("Error: Module definition not starting with mod")
 	}
@@ -40,8 +40,8 @@ func (p *PuppetFileParser) parseModule(line string) (PuppetModule, error) {
 	if moduleType == "git" {
 		return &GitModule{name, repoUrl, installPath, ref, targetFolder}, nil
 	} else {
-    return nil, errors.New("Unknown module type")
-  }
+		return &ForgeModule{name: name}, nil
+	}
 }
 
 func (p *PuppetFileParser) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[string]string) {
@@ -50,9 +50,7 @@ func (p *PuppetFileParser) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, ma
 
 	for block := ""; s.Scan(); {
 		line := s.Text()
-    fmt.Println(line)
 		line = strings.Split(s.Text(), "#")[0] // Remove comments
-		line = strings.TrimSpace(line)
 
 		if len(line) == 0 {
 			continue
@@ -80,7 +78,7 @@ func (p *PuppetFileParser) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, ma
 		}
 	}
 
-  return modules, opts
+	return modules, opts
 }
 
 func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup) error {
@@ -88,7 +86,7 @@ func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetMo
 	s := bufio.NewScanner(puppetFile)
 	s.Split(bufio.ScanLines)
 
-  modules, opts := p.parsePuppetFile(s)
+	modules, opts := p.parsePuppetFile(s)
 
 	for _, module := range modules {
 		module = p.compute(module, opts)
