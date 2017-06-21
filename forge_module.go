@@ -16,6 +16,18 @@ type ForgeModule struct {
 	targetFolder        string
 }
 
+type ForgeDownloadError struct {
+	err error
+}
+
+func (fde *ForgeDownloadError) Error() string {
+	return "POUET"
+}
+
+func (fde *ForgeDownloadError) Retryable() bool {
+	return true
+}
+
 func (m *ForgeModule) Name() string {
 	return m.name
 }
@@ -37,7 +49,7 @@ type ModuleReleases struct {
 func (m *ForgeModule) Gunzip(r io.Reader, targetFolder string) error {
 	gzf, err := gzip.NewReader(r)
 	if err != nil {
-		return err
+		return &ForgeDownloadError{err: err}
 	}
 
 	tarReader := tar.NewReader(gzf)
@@ -55,8 +67,7 @@ func (m *ForgeModule) Gunzip(r io.Reader, targetFolder string) error {
 		}
 
 		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
+			return &ForgeDownloadError{err: err}
 		}
 
 		name := header.Name
@@ -77,22 +88,17 @@ func (m *ForgeModule) Gunzip(r io.Reader, targetFolder string) error {
 		case tar.TypeDir:
 			os.Mkdir(m.TargetFolder()+"/"+name, 0755)
 			continue
+
 		case tar.TypeReg:
 			data := make([]byte, header.Size)
 			_, err := tarReader.Read(data)
 			if err != nil {
-				panic("Error reading file!!! PANIC!!!!!!")
+				return &ForgeDownloadError{err: err}
 			}
-
 			ioutil.WriteFile(m.TargetFolder()+"/"+name, data, 0755)
 
 		default:
-			fmt.Printf("%s : %c %s %s\n",
-				"Yikes! Unable to figure out type",
-				header.Typeflag,
-				"in file",
-				name,
-			)
+			fmt.Println("Error extracting Tar.gz file")
 		}
 
 		i++
@@ -117,14 +123,14 @@ func (m *ForgeModule) Download() (string, error) {
 	var mr ModuleReleases
 	err := json.Unmarshal(body, &mr)
 	if err != nil {
-		fmt.Println(err)
+		return "", &ForgeDownloadError{err: err}
 	}
 	if len(mr.Results) > 0 {
 		forgeArchive, _ := http.Get(forgeUrl + mr.Results[0].File_uri)
 		defer forgeArchive.Body.Close()
 		if err = m.Gunzip(forgeArchive.Body, m.TargetFolder()); err != nil {
 			fmt.Println("Error processing url: " + err.Error())
-			return "", err
+			return "", &ForgeDownloadError{err: err}
 		}
 	}
 
