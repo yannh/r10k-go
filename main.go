@@ -6,7 +6,7 @@ import "log"
 import "io"
 import "time"
 import "fmt"
-import "github.com/docopt/docopt-go"
+import "strconv"
 
 type PuppetModule interface {
 	Name() string
@@ -24,31 +24,50 @@ type DownloadError interface {
 	Retryable() bool
 }
 
-func cloneWorker(c chan PuppetModule, wg *sync.WaitGroup) {
+type Modules struct {
+	*sync.Mutex
+	m map[string]bool
+}
+
+func cloneWorker(c chan PuppetModule, modules *Modules, wg *sync.WaitGroup) {
+	var err error
+	var derr DownloadError
+	var ok bool
+
 	parser := MetadataParser{}
 	maxTries := 3
 	retryDelay := 3 * time.Second
 
 	for m := range c {
-		if _, err := os.Stat(m.TargetFolder()); err == nil {
-			fmt.Println(m.Name() + " already present on the filesystem, skipping...")
+		modules.Lock()
+		if _, ok := modules.m[m.Name()]; ok {
 			wg.Done()
+			modules.Unlock()
 			continue
+		} else {
+			modules.m[m.Name()] = true
 		}
+		modules.Unlock()
 
-		target, err := m.Download()
-		if err != nil {
-			derr, ok := err.(DownloadError)
-			for i := 0; i < maxTries-1 && ok && derr.Retryable(); i++ {
-				time.Sleep(retryDelay)
-				target, err = m.Download()
+		derr = nil
+		if _, err = os.Stat(m.TargetFolder()); err != nil {
+			if _, err = m.Download(); err != nil {
 				derr, ok = err.(DownloadError)
+				for i := 0; i < maxTries-1 && ok && derr.Retryable(); i++ {
+					time.Sleep(retryDelay)
+					_, err = m.Download()
+					derr, ok = err.(DownloadError)
+				}
+			}
+
+			if derr == nil {
+				fmt.Println("Downloaded " + m.Name() + " to " + m.TargetFolder())
+			} else {
+				fmt.Println("Failed downloading " + m.Name() + ": " + derr.Error())
 			}
 		}
 
-		fmt.Println("Downloaded " + m.Name() + " to " + m.TargetFolder())
-
-		if file, err := os.Open(target + "/metadata.json"); err == nil {
+		if file, err := os.Open(m.TargetFolder() + "/metadata.json"); err == nil {
 			defer file.Close()
 			wg.Add(1)
 			go parser.parse(file, c, wg)
@@ -59,33 +78,49 @@ func cloneWorker(c chan PuppetModule, wg *sync.WaitGroup) {
 }
 
 func main() {
-	usage := `r10k-go.
+	var err error
+	var numWorkers int
+	var puppetfile string
 
-Usage:
-  r10k-go deploy environment <env_name>
+	opts := cli()
 
-Options:
-  -h --help     Show this screen.`
-	numWorkers := 4
+	if opts["install"] == true {
+		if opts["--workers"] == nil {
+			numWorkers = 4
+		} else {
+			numWorkers, err = strconv.Atoi(opts["--workers"].(string))
+			if err != nil {
+				fmt.Println("Parameter --workers should be an integer")
+			}
+		}
 
-	docopt.Parse(usage, nil, true, "r10k-go", false)
+		if opts["--puppetfile"] == nil {
+			puppetfile = "Puppetfile"
+		} else {
+			puppetfile = opts["--puppetfile"].(string)
+		}
 
-	file, err := os.Open("Puppetfile")
-	if err != nil {
-		log.Fatal(err)
+		file, err := os.Open(puppetfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer file.Close()
+
+		modulesChan := make(chan PuppetModule)
+		var wg sync.WaitGroup
+
+		modules := Modules{
+			&sync.Mutex{},
+			make(map[string]bool)}
+
+		for w := 1; w <= numWorkers; w++ {
+			go cloneWorker(modulesChan, &modules, &wg)
+		}
+
+		parser := PuppetFileParser{}
+		parser.parse(file, modulesChan, &wg)
+
+		wg.Wait()
+		close(modulesChan)
 	}
-	defer file.Close()
-
-	modulesChan := make(chan PuppetModule)
-	var wg sync.WaitGroup
-
-	for w := 1; w <= numWorkers; w++ {
-		go cloneWorker(modulesChan, &wg)
-	}
-
-	parser := PuppetFileParser{}
-	parser.parse(file, modulesChan, &wg)
-
-	wg.Wait()
-	close(modulesChan)
 }

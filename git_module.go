@@ -1,7 +1,6 @@
 package main
 
 import "os/exec"
-import "fmt"
 
 type GitModule struct {
 	name         string
@@ -45,7 +44,6 @@ func (m *GitModule) Download() (string, error) {
 	}
 
 	if err := cmd.Run(); err != nil {
-		fmt.Println("Error downloading " + m.repoUrl)
 		return "", &GitDownloadError{err: err}
 	}
 
