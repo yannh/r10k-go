@@ -15,6 +15,7 @@ unit-tests:
 
 build:
 	go build ./...
+	find .
 
 integration-tests:
 ifdef RUN_INTEGRATION_TESTS
