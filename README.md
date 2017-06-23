@@ -1,4 +1,4 @@
-# r10k-go - Fast &amp; resilient Puppet module deployments
+# r10k-go - Fast &amp; resilient Puppet module deployments  [![Build Status](https://travis-ci.org/yannh/r10k-go.svg?branch=master)](https://travis-ci.org/yannh/r10k-go)
 
 WARNING: Under heavy development. Not ready for wide use.
 
