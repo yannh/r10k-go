@@ -15,9 +15,8 @@ unit-tests:
 
 build:
 	go build ./...
-	find .
 
 integration-tests:
 ifdef RUN_INTEGRATION_TESTS
-	./bin/r10k-go install --puppetfile test-fixtures/Puppetfile
+	./r10k-go install --puppetfile test-fixtures/Puppetfile
 endif
