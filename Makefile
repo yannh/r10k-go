@@ -1,8 +1,8 @@
+#!/usr/bin/make -f
 
+.PHONY: all go-deps unit-tests test build integration-tests
 
-.PHONY: all go-deps unit-tests test
-
-all: go-deps test
+all: go-deps test build integration-tests
 
 go-deps:
 	go get -t ./...
@@ -13,3 +13,10 @@ unit-tests:
 	go test -v ./...
 	go vet -v ./...
 
+build:
+	go build ./...
+
+integration-tests:
+ifdef RUN_INTEGRATION_TESTS
+	./bin/r10k-go install --puppetfile test-fixtures/Puppetfile
+endif

@@ -1,7 +1,8 @@
 language: go
 
 go:
-  - 1.7.x
-  - master
-
+  - go: 1.6
+  - go: 1.7
+  - go: 1.8
+    env: RUN_INTEGRATION_TESTS=true
 

@@ -35,6 +35,7 @@ func TestParseModuleForge(t *testing.T) {
 
 	cases := []string{
 		"mod 'puppetlabs/puppetlabs-apache'",
+		"mod    \"puppetlabs/puppetlabs-apache\"  ",
 	}
 
 	expected := &ForgeModule{
