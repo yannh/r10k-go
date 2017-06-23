@@ -1,8 +1,9 @@
 language: go
 
-go:
-  - go: 1.6
-  - go: 1.7
-  - go: 1.8
-    env: RUN_INTEGRATION_TESTS=true
+matrix:
+  include:
+    - go: 1.6
+    - go: 1.7
+    - go: 1.8
+      env: RUN_INTEGRATION_TESTS=true
 
