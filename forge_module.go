@@ -109,6 +109,8 @@ func (m *ForgeModule) Gunzip(r io.Reader, targetFolder string) error {
 }
 
 func (m *ForgeModule) Download() (string, error) {
+	var err error
+
 	forgeUrl := "https://forgeapi.puppetlabs.com:443/"
 	ApiVersion := "v3"
 
@@ -117,17 +119,27 @@ func (m *ForgeModule) Download() (string, error) {
 		"&sort_by=release_date" +
 		"&limit=1"
 
-	resp, _ := http.Get(url)
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", &ForgeDownloadError{err: err}
+	}
+
 	defer resp.Body.Close()
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return "", &ForgeDownloadError{err: err}
+	}
 
 	var mr ModuleReleases
-	err := json.Unmarshal(body, &mr)
+	err = json.Unmarshal(body, &mr)
 	if err != nil {
 		return "", &ForgeDownloadError{err: err}
 	}
 	if len(mr.Results) > 0 {
-		forgeArchive, _ := http.Get(forgeUrl + mr.Results[0].File_uri)
+		forgeArchive, err := http.Get(forgeUrl + mr.Results[0].File_uri)
+		if err != nil {
+			return "", &ForgeDownloadError{err: err}
+		}
 		defer forgeArchive.Body.Close()
 		if err = m.Gunzip(forgeArchive.Body, m.TargetFolder()); err != nil {
 			return "", &ForgeDownloadError{err: fmt.Errorf("Error processing url: %s", err.Error())}
