@@ -9,11 +9,19 @@ import "net/http"
 import "io/ioutil"
 import "io"
 import "encoding/json"
+import "crypto/sha1"
+import "encoding/base64"
 
 type ForgeModule struct {
 	name                string
 	version_requirement string
 	targetFolder        string
+}
+
+func (m *ForgeModule) Hash() string {
+	hasher := sha1.New()
+	hasher.Write([]byte(m.name))
+	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
 type ForgeDownloadError struct {
@@ -50,14 +58,15 @@ type ModuleReleases struct {
 func (m *ForgeModule) Gunzip(r io.Reader, targetFolder string) error {
 	gzf, err := gzip.NewReader(r)
 	if err != nil {
-		return &ForgeDownloadError{err: err}
+		return &ForgeDownloadError{err: err, retryable: true}
 	}
 
 	tarReader := tar.NewReader(gzf)
 	i := 0
 
 	if _, err = os.Stat(m.TargetFolder()); err != nil {
-		os.Mkdir(m.TargetFolder(), 0755)
+		err := os.Mkdir(m.TargetFolder(), 0755)
+		return &ForgeDownloadError{err: fmt.Errorf("Error creating %S: %s", m.TargetFolder(), err.Error()), retryable: false}
 	}
 
 	for {
@@ -87,14 +96,16 @@ func (m *ForgeModule) Gunzip(r io.Reader, targetFolder string) error {
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			os.Mkdir(m.TargetFolder()+"/"+name, 0755)
+			if err = os.Mkdir(m.TargetFolder()+"/"+name, 0755); err != nil {
+				return &ForgeDownloadError{err: fmt.Errorf("Error creating %S: %s", m.TargetFolder()+"/"+name, err.Error()), retryable: false}
+			}
 			continue
 
 		case tar.TypeReg:
 			data := make([]byte, header.Size)
 			_, err := tarReader.Read(data)
 			if err != nil {
-				return &ForgeDownloadError{err: err}
+				return &ForgeDownloadError{err: err, retryable: true}
 			}
 			ioutil.WriteFile(m.TargetFolder()+"/"+name, data, 0755)
 
@@ -108,7 +119,7 @@ func (m *ForgeModule) Gunzip(r io.Reader, targetFolder string) error {
 	return nil
 }
 
-func (m *ForgeModule) Download() (string, error) {
+func (m *ForgeModule) Download(cache Cache) (string, error) {
 	var err error
 
 	forgeUrl := "https://forgeapi.puppetlabs.com:443/"
