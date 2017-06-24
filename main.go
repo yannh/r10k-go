@@ -2,6 +2,7 @@ package main
 
 import "sync"
 import "os"
+import "path"
 import "log"
 import "io"
 import "time"
@@ -10,9 +11,10 @@ import "strconv"
 
 type PuppetModule interface {
 	Name() string
-	Download() (string, error)
+	Download(Cache) (string, error)
 	SetTargetFolder(string)
 	TargetFolder() string
+	Hash() string
 }
 
 type Parser interface {
@@ -29,7 +31,7 @@ type Modules struct {
 	m map[string]bool
 }
 
-func cloneWorker(c chan PuppetModule, modules *Modules, wg *sync.WaitGroup) {
+func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.WaitGroup) {
 	var err error
 	var derr DownloadError
 	var ok bool
@@ -44,18 +46,17 @@ func cloneWorker(c chan PuppetModule, modules *Modules, wg *sync.WaitGroup) {
 			wg.Done()
 			modules.Unlock()
 			continue
-		} else {
-			modules.m[m.Name()] = true
 		}
+		modules.m[m.Name()] = true
 		modules.Unlock()
 
 		derr = nil
 		if _, err = os.Stat(m.TargetFolder()); err != nil {
-			if _, err = m.Download(); err != nil {
+			if _, err = m.Download(cache); err != nil {
 				derr, ok = err.(DownloadError)
 				for i := 0; i < maxTries-1 && ok && derr.Retryable(); i++ {
 					time.Sleep(retryDelay)
-					_, err = m.Download()
+					_, err = m.Download(cache)
 					derr, ok = err.(DownloadError)
 				}
 			}
@@ -67,10 +68,12 @@ func cloneWorker(c chan PuppetModule, modules *Modules, wg *sync.WaitGroup) {
 			}
 		}
 
-		if file, err := os.Open(m.TargetFolder() + "/metadata.json"); err == nil {
-			defer file.Close()
+		if file, err := os.Open(path.Join(m.TargetFolder(), "metadata.json")); err == nil {
 			wg.Add(1)
-			go parser.parse(file, c, wg)
+			go func() {
+				parser.parse(file, c, wg)
+				file.Close()
+			}()
 		}
 
 		wg.Done()
@@ -82,22 +85,26 @@ func main() {
 	var numWorkers int
 	var puppetfile string
 
-	opts := cli()
+	cliOpts := cli()
+	cache, err := NewCache(".tmp/")
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	if opts["install"] == true {
-		if opts["--workers"] == nil {
+	if cliOpts["install"] == true {
+		if cliOpts["--workers"] == nil {
 			numWorkers = 4
 		} else {
-			numWorkers, err = strconv.Atoi(opts["--workers"].(string))
+			numWorkers, err = strconv.Atoi(cliOpts["--workers"].(string))
 			if err != nil {
-				fmt.Println("Parameter --workers should be an integer")
+				log.Fatalf("Parameter --workers should be an integer")
 			}
 		}
 
-		if opts["--puppetfile"] == nil {
+		if cliOpts["--puppetfile"] == nil {
 			puppetfile = "Puppetfile"
 		} else {
-			puppetfile = opts["--puppetfile"].(string)
+			puppetfile = cliOpts["--puppetfile"].(string)
 		}
 
 		file, err := os.Open(puppetfile)
@@ -114,7 +121,7 @@ func main() {
 			make(map[string]bool)}
 
 		for w := 1; w <= numWorkers; w++ {
-			go cloneWorker(modulesChan, &modules, &wg)
+			go cloneWorker(modulesChan, &modules, cache, &wg)
 		}
 
 		parser := PuppetFileParser{}
