@@ -1,10 +1,12 @@
 package main
 
-import "strings"
-import "errors"
-import "bufio"
-import "io"
-import "sync"
+import (
+	"bufio"
+	"errors"
+	"io"
+	"strings"
+	"sync"
+)
 
 type PuppetFileParser struct {
 }

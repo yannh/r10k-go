@@ -1,14 +1,17 @@
 package main
 
-import "os/exec"
-import "os"
-import "crypto/sha1"
-import "encoding/base64"
+import (
+	"crypto/sha1"
+	"encoding/base64"
+	"os"
+	"os/exec"
+	"path"
+)
 
 type GitModule struct {
 	name         string
 	repoUrl      string
-	installPath  string
+	installPath  string // TODO: Implement
 	ref          string
 	targetFolder string
 }
@@ -44,16 +47,30 @@ func (m *GitModule) TargetFolder() string {
 	return m.targetFolder
 }
 
+func (m *GitModule) downloadToCache(cache Cache) error {
+	var cmd *exec.Cmd
+
+	hash := m.Hash()
+	if !cache.Has(m) {
+		cmd = exec.Command("git", "clone", m.repoUrl, path.Join(cache.folder, hash))
+		if err := cmd.Run(); err != nil {
+			return &GitDownloadError{err: err, retryable: true}
+		}
+	}
+
+	return nil
+}
+
+func (m *GitModule) fetchFromCache(cache Cache) error {
+	return nil
+}
+
 func (m *GitModule) Download(cache Cache) (string, error) {
 	var cmd *exec.Cmd
 	var err error
 
-	hash := m.Hash()
 	if !cache.Has(m) {
-		cmd = exec.Command("git", "clone", m.repoUrl, cache.folder+hash)
-		if err := cmd.Run(); err != nil {
-			return "", &GitDownloadError{err: err, retryable: true}
-		}
+		m.downloadToCache(cache)
 	}
 
 	cwd, err := os.Getwd()
@@ -61,13 +78,12 @@ func (m *GitModule) Download(cache Cache) (string, error) {
 		return "", &GitDownloadError{err: err, retryable: false}
 	}
 
-	// TODO use path.Join instead of / everwhere
 	if m.ref == "" {
-		cmd = exec.Command("git", "worktree", "add", "--detach", "-f", cwd+"/"+m.targetFolder)
+		cmd = exec.Command("git", "worktree", "add", "--detach", "-f", path.Join(cwd, m.targetFolder))
 	} else {
-		cmd = exec.Command("git", "worktree", "add", "--detach", "-f", cwd+"/"+m.targetFolder, m.ref)
+		cmd = exec.Command("git", "worktree", "add", "--detach", "-f", path.Join(cwd, m.targetFolder), m.ref)
 	}
-	cmd.Dir = cache.folder + hash
+	cmd.Dir = path.Join(cache.folder, m.Hash())
 
 	if err = cmd.Run(); err != nil {
 		return "", &GitDownloadError{err: err, retryable: true}

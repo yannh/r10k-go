@@ -1,16 +1,19 @@
 package main
 
-import "fmt"
-import "os"
-import "strings"
-import "archive/tar"
-import "compress/gzip"
-import "net/http"
-import "io/ioutil"
-import "io"
-import "encoding/json"
-import "crypto/sha1"
-import "encoding/base64"
+import (
+	"archive/tar"
+	"compress/gzip"
+	"crypto/sha1"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"os"
+	"path"
+	"strings"
+)
 
 type ForgeModule struct {
 	name                string
@@ -25,12 +28,8 @@ func (m *ForgeModule) Hash() string {
 }
 
 type ForgeDownloadError struct {
-	err       error
+	error
 	retryable bool
-}
-
-func (fde *ForgeDownloadError) Error() string {
-	return ""
 }
 
 func (fde *ForgeDownloadError) Retryable() bool {
@@ -55,18 +54,19 @@ type ModuleReleases struct {
 	}
 }
 
-func (m *ForgeModule) Gunzip(r io.Reader, targetFolder string) error {
+func (m *ForgeModule) gunzip(r io.Reader, targetFolder string) error {
 	gzf, err := gzip.NewReader(r)
 	if err != nil {
-		return &ForgeDownloadError{err: err, retryable: true}
+		return &ForgeDownloadError{err, true}
 	}
 
 	tarReader := tar.NewReader(gzf)
 	i := 0
 
 	if _, err = os.Stat(m.TargetFolder()); err != nil {
-		err := os.Mkdir(m.TargetFolder(), 0755)
-		return &ForgeDownloadError{err: fmt.Errorf("Error creating %S: %s", m.TargetFolder(), err.Error()), retryable: false}
+		if err := os.MkdirAll(m.TargetFolder(), 0755); err != nil {
+			return &ForgeDownloadError{err, false}
+		}
 	}
 
 	for {
@@ -77,7 +77,7 @@ func (m *ForgeModule) Gunzip(r io.Reader, targetFolder string) error {
 		}
 
 		if err != nil {
-			return &ForgeDownloadError{err: err}
+			return &ForgeDownloadError{err, true}
 		}
 
 		name := header.Name
@@ -96,8 +96,8 @@ func (m *ForgeModule) Gunzip(r io.Reader, targetFolder string) error {
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err = os.Mkdir(m.TargetFolder()+"/"+name, 0755); err != nil {
-				return &ForgeDownloadError{err: fmt.Errorf("Error creating %S: %s", m.TargetFolder()+"/"+name, err.Error()), retryable: false}
+			if err = os.MkdirAll(path.Join(m.TargetFolder(), name), 0755); err != nil {
+				return &ForgeDownloadError{fmt.Errorf("Error creating %s: %s", m.TargetFolder()+"/"+name, err.Error()), false}
 			}
 			continue
 
@@ -105,12 +105,12 @@ func (m *ForgeModule) Gunzip(r io.Reader, targetFolder string) error {
 			data := make([]byte, header.Size)
 			_, err := tarReader.Read(data)
 			if err != nil {
-				return &ForgeDownloadError{err: err, retryable: true}
+				return &ForgeDownloadError{err, true}
 			}
 			ioutil.WriteFile(m.TargetFolder()+"/"+name, data, 0755)
 
 		default:
-			fmt.Println("Error extracting Tar.gz file")
+			return &ForgeDownloadError{fmt.Errorf("Error extracting Tar file: %s", err.Error()), false}
 		}
 
 		i++
@@ -132,31 +132,31 @@ func (m *ForgeModule) Download(cache Cache) (string, error) {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		return "", &ForgeDownloadError{err: err}
+		return "", &ForgeDownloadError{err, true}
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", &ForgeDownloadError{err: err}
+		return "", &ForgeDownloadError{err, true}
 	}
 
 	var mr ModuleReleases
 	err = json.Unmarshal(body, &mr)
 	if err != nil {
-		return "", &ForgeDownloadError{err: err}
+		return "", &ForgeDownloadError{err, true}
 	}
 	if len(mr.Results) > 0 {
 		forgeArchive, err := http.Get(forgeUrl + mr.Results[0].File_uri)
 		if err != nil {
-			return "", &ForgeDownloadError{err: err}
+			return "", &ForgeDownloadError{fmt.Errorf("Failed retrieving %s", forgeUrl+mr.Results[0].File_uri), true}
 		}
 		defer forgeArchive.Body.Close()
-		if err = m.Gunzip(forgeArchive.Body, m.TargetFolder()); err != nil {
-			return "", &ForgeDownloadError{err: fmt.Errorf("Error processing url: %s", err.Error())}
+		if err = m.gunzip(forgeArchive.Body, m.TargetFolder()); err != nil {
+			return "", &ForgeDownloadError{err, true}
 		}
 	} else {
-		return "", &ForgeDownloadError{err: fmt.Errorf("Could not find module %s", m.Name())}
+		return "", &ForgeDownloadError{fmt.Errorf("Could not find module %s", m.Name()), true}
 	}
 	return "", nil
 }

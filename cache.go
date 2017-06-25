@@ -1,7 +1,9 @@
 package main
 
-import "os"
-import "fmt"
+import (
+	"fmt"
+	"os"
+)
 
 type Cache struct {
 	folder string
@@ -13,7 +15,7 @@ func NewCache(cacheFolder string) (Cache, error) {
 			return Cache{}, fmt.Errorf("Failed creating cache folder %s: %s", cacheFolder, err.Error())
 		}
 	}
-	return Cache{cacheFolder}, nil
+	return Cache{folder: cacheFolder}, nil
 }
 
 func (cache Cache) Has(module PuppetModule) bool {

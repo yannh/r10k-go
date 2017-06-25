@@ -1,13 +1,15 @@
 package main
 
-import "sync"
-import "os"
-import "path"
-import "log"
-import "io"
-import "time"
-import "fmt"
-import "strconv"
+import (
+	"fmt"
+	"io"
+	"log"
+	"os"
+	"path"
+	"strconv"
+	"sync"
+	"time"
+)
 
 type PuppetModule interface {
 	Name() string
@@ -54,7 +56,8 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 		if _, err = os.Stat(m.TargetFolder()); err != nil {
 			if _, err = m.Download(cache); err != nil {
 				derr, ok = err.(DownloadError)
-				for i := 0; i < maxTries-1 && ok && derr.Retryable(); i++ {
+				for i := 0; err != nil && i < maxTries-1 && ok && derr.Retryable(); i++ {
+					fmt.Println("Failed downloading " + m.Name() + ": " + derr.Error() + ". Retrying...")
 					time.Sleep(retryDelay)
 					_, err = m.Download(cache)
 					derr, ok = err.(DownloadError)
@@ -64,7 +67,7 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 			if derr == nil {
 				fmt.Println("Downloaded " + m.Name() + " to " + m.TargetFolder())
 			} else {
-				fmt.Println("Failed downloading " + m.Name() + ": " + derr.Error())
+				fmt.Println("Failed downloading " + m.Name() + ": " + derr.Error() + ". Giving up")
 			}
 		}
 
@@ -84,10 +87,11 @@ func main() {
 	var err error
 	var numWorkers int
 	var puppetfile string
+	var environment string
+	var cache Cache
 
 	cliOpts := cli()
-	cache, err := NewCache(".tmp/")
-	if err != nil {
+	if cache, err = NewCache(".tmp"); err != nil {
 		log.Fatal(err)
 	}
 
@@ -106,6 +110,13 @@ func main() {
 		} else {
 			puppetfile = cliOpts["--puppetfile"].(string)
 		}
+
+		if cliOpts["--environment"] == nil {
+			environment = "production"
+		} else {
+			environment = cliOpts["--puppetfile"].(string)
+		}
+		fmt.Println(environment)
 
 		file, err := os.Open(puppetfile)
 		if err != nil {
