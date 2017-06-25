@@ -61,16 +61,15 @@ func (m *GitModule) downloadToCache(cache Cache) error {
 	return nil
 }
 
-func (m *GitModule) fetchFromCache(cache Cache) error {
-	return nil
-}
 
 func (m *GitModule) Download(cache Cache) (string, error) {
 	var cmd *exec.Cmd
 	var err error
 
 	if !cache.Has(m) {
-		m.downloadToCache(cache)
+		if err = m.downloadToCache(cache); err != nil {
+      return "", err
+    }
 	}
 
 	cwd, err := os.Getwd()

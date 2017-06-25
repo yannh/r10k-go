@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"io"
+	"path"
 	"strings"
 	"sync"
 )
@@ -83,7 +84,7 @@ func (p *PuppetFileParser) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, ma
 	return modules, opts
 }
 
-func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup) error {
+func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup, environment string) error {
 
 	s := bufio.NewScanner(puppetFile)
 	s.Split(bufio.ScanLines)
@@ -91,7 +92,7 @@ func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetMo
 	modules, opts := p.parsePuppetFile(s)
 
 	for _, module := range modules {
-		module = p.compute(module, opts)
+		module = p.compute(module, opts, environment)
 		wg.Add(1)
 		modulesChan <- module
 	}
@@ -99,13 +100,15 @@ func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetMo
 	return nil
 }
 
-func (p *PuppetFileParser) compute(m PuppetModule, opts map[string]string) PuppetModule {
+func (p *PuppetFileParser) compute(m PuppetModule, opts map[string]string, environment string) PuppetModule {
 	modulePath, ok := opts["modulePath"]
 	if !ok {
-		modulePath = "./modules/"
-	}
+		modulePath = path.Join(environment, "modules")
+	} else {
+		modulePath = path.Join(environment, modulePath)
+  }
 	splitPath := strings.Split(m.Name(), "/")
 	folderName := splitPath[len(splitPath)-1]
-	m.SetTargetFolder(modulePath + folderName)
+	m.SetTargetFolder(path.Join(modulePath, folderName))
 	return m
 }

@@ -8,6 +8,7 @@ func TestParseModuleGit(t *testing.T) {
 	cases := []string{
 		"mod 'puppetlabs/puppetlabs-apache', :git => 'https://github.com/puppetlabs/puppetlabs-apache.git'",
 		"mod  \"puppetlabs/puppetlabs-apache\",    :git  =>      \"https://github.com/puppetlabs/puppetlabs-apache.git\"  ",
+		// "mod 'puppetlabs/puppetlabs-apache', git: 'https://github.com/puppetlabs/puppetlabs-apache.git'", TODO
 	}
 
 	expected := &GitModule{

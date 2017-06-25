@@ -1,5 +1,7 @@
 package main
 
+// TODO: Return 1 if at least one module failed to download
+
 import (
 	"fmt"
 	"io"
@@ -20,7 +22,7 @@ type PuppetModule interface {
 }
 
 type Parser interface {
-	parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup) error
+	parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup, environment string) error
 }
 
 type DownloadError interface {
@@ -33,7 +35,7 @@ type Modules struct {
 	m map[string]bool
 }
 
-func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.WaitGroup) {
+func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.WaitGroup, environment string) {
 	var err error
 	var derr DownloadError
 	var ok bool
@@ -74,7 +76,7 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 		if file, err := os.Open(path.Join(m.TargetFolder(), "metadata.json")); err == nil {
 			wg.Add(1)
 			go func() {
-				parser.parse(file, c, wg)
+				parser.parse(file, c, wg, environment)
 				file.Close()
 			}()
 		}
@@ -86,8 +88,7 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 func main() {
 	var err error
 	var numWorkers int
-	var puppetfile string
-	var environment string
+	var puppetfile, environment string
 	var cache Cache
 
 	cliOpts := cli()
@@ -112,11 +113,10 @@ func main() {
 		}
 
 		if cliOpts["--environment"] == nil {
-			environment = "production"
+			environment = path.Join("environment", "production")
 		} else {
-			environment = cliOpts["--puppetfile"].(string)
+			environment = path.Join("environment", cliOpts["--environment"].(string))
 		}
-		fmt.Println(environment)
 
 		file, err := os.Open(puppetfile)
 		if err != nil {
@@ -132,11 +132,11 @@ func main() {
 			make(map[string]bool)}
 
 		for w := 1; w <= numWorkers; w++ {
-			go cloneWorker(modulesChan, &modules, cache, &wg)
+			go cloneWorker(modulesChan, &modules, cache, &wg, environment)
 		}
 
 		parser := PuppetFileParser{}
-		parser.parse(file, modulesChan, &wg)
+		parser.parse(file, modulesChan, &wg, environment)
 
 		wg.Wait()
 		close(modulesChan)
