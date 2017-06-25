@@ -5,7 +5,7 @@
 all: clean go-deps test build integration-tests
 
 clean:
-	rm -rf .tmp modules r10k-go
+	rm -rf .tmp modules r10k-go environment
 
 go-deps:
 	go get -t ./...
