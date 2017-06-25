@@ -20,7 +20,7 @@ type Metadata struct {
 type MetadataParser struct {
 }
 
-func (p *MetadataParser) parse(r io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup, environment string) error {
+func (p *MetadataParser) parse(r io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup) error {
 	var meta Metadata
 
 	defer wg.Done()
@@ -29,15 +29,15 @@ func (p *MetadataParser) parse(r io.Reader, modulesChan chan PuppetModule, wg *s
 	json.Unmarshal(metadataFile, &meta)
 	for _, req := range meta.Dependencies {
 		wg.Add(1)
-		modulesChan <- p.compute(&ForgeModule{name: req.Name, version_requirement: req.Version_requirement}, environment)
+		modulesChan <- p.compute(&ForgeModule{name: req.Name, version_requirement: req.Version_requirement})
 	}
 
 	return nil
 }
 
-func (p *MetadataParser) compute(m PuppetModule, environment string) PuppetModule {
+func (p *MetadataParser) compute(m PuppetModule) PuppetModule {
 	splitPath := strings.Split(m.Name(), "/")
 	folderName := splitPath[len(splitPath)-1]
-	m.SetTargetFolder(path.Join(environment, "modules", folderName))
+	m.SetTargetFolder(path.Join("modules", folderName))
 	return m
 }

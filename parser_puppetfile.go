@@ -41,7 +41,7 @@ func (p *PuppetFileParser) parseModule(line string) (PuppetModule, error) {
 	}
 
 	if moduleType == "git" {
-		return &GitModule{name, repoUrl, installPath, ref, targetFolder}, nil
+		return &GitModule{name, repoUrl, installPath, ref, targetFolder, ""}, nil
 	} else {
 		return &ForgeModule{name: name}, nil
 	}
@@ -84,7 +84,7 @@ func (p *PuppetFileParser) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, ma
 	return modules, opts
 }
 
-func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup, environment string) error {
+func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup) error {
 
 	s := bufio.NewScanner(puppetFile)
 	s.Split(bufio.ScanLines)
@@ -92,7 +92,7 @@ func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetMo
 	modules, opts := p.parsePuppetFile(s)
 
 	for _, module := range modules {
-		module = p.compute(module, opts, environment)
+		module = p.compute(module, opts)
 		wg.Add(1)
 		modulesChan <- module
 	}
@@ -100,13 +100,13 @@ func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetMo
 	return nil
 }
 
-func (p *PuppetFileParser) compute(m PuppetModule, opts map[string]string, environment string) PuppetModule {
+func (p *PuppetFileParser) compute(m PuppetModule, opts map[string]string) PuppetModule {
 	modulePath, ok := opts["modulePath"]
 	if !ok {
-		modulePath = path.Join(environment, "modules")
+		modulePath = "modules"
 	} else {
-		modulePath = path.Join(environment, modulePath)
-  }
+		modulePath = modulePath
+	}
 	splitPath := strings.Split(m.Name(), "/")
 	folderName := splitPath[len(splitPath)-1]
 	m.SetTargetFolder(path.Join(modulePath, folderName))

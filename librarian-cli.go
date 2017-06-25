@@ -7,7 +7,8 @@ func cli() map[string]interface{} {
 	usage := `librarian-go
 
   Usage:
-    librarian-go install [--puppetfile=<PUPPETFILE>]  [--environment=<ENVIRONMENT>] [--workers=<workers>]
+    librarian-go install [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
+    librarian-go deploy environment <ENV> [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
     librarian-go git_status
     librarian-go update
 

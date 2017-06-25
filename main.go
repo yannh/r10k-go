@@ -15,9 +15,10 @@ import (
 
 type PuppetModule interface {
 	Name() string
-	Download(Cache) (string, error)
+	Download() error
 	SetTargetFolder(string)
 	TargetFolder() string
+	SetCacheFolder(string)
 	Hash() string
 }
 
@@ -35,7 +36,7 @@ type Modules struct {
 	m map[string]bool
 }
 
-func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.WaitGroup, environment string) {
+func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.WaitGroup, environmentRootFolder string) {
 	var err error
 	var derr DownloadError
 	var ok bool
@@ -45,6 +46,9 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 	retryDelay := 3 * time.Second
 
 	for m := range c {
+		m.SetCacheFolder(path.Join(cache.folder, m.Hash()))
+		m.SetTargetFolder(path.Join(environmentRootFolder, m.TargetFolder()))
+
 		modules.Lock()
 		if _, ok := modules.m[m.Name()]; ok {
 			wg.Done()
@@ -56,12 +60,12 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 
 		derr = nil
 		if _, err = os.Stat(m.TargetFolder()); err != nil {
-			if _, err = m.Download(cache); err != nil {
+			if err = m.Download(); err != nil {
 				derr, ok = err.(DownloadError)
 				for i := 0; err != nil && i < maxTries-1 && ok && derr.Retryable(); i++ {
 					fmt.Println("Failed downloading " + m.Name() + ": " + derr.Error() + ". Retrying...")
 					time.Sleep(retryDelay)
-					_, err = m.Download(cache)
+					err = m.Download()
 					derr, ok = err.(DownloadError)
 				}
 			}
@@ -76,7 +80,7 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 		if file, err := os.Open(path.Join(m.TargetFolder(), "metadata.json")); err == nil {
 			wg.Add(1)
 			go func() {
-				parser.parse(file, c, wg, environment)
+				parser.parse(file, c, wg)
 				file.Close()
 			}()
 		}
@@ -88,7 +92,7 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 func main() {
 	var err error
 	var numWorkers int
-	var puppetfile, environment string
+	var puppetfile, environmentRootFolder string
 	var cache Cache
 
 	cliOpts := cli()
@@ -96,7 +100,9 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if cliOpts["install"] == true {
+	fmt.Println(cliOpts)
+
+	if cliOpts["install"] == true || cliOpts["deploy"] == true {
 		if cliOpts["--workers"] == nil {
 			numWorkers = 4
 		} else {
@@ -112,12 +118,6 @@ func main() {
 			puppetfile = cliOpts["--puppetfile"].(string)
 		}
 
-		if cliOpts["--environment"] == nil {
-			environment = path.Join("environment", "production")
-		} else {
-			environment = path.Join("environment", cliOpts["--environment"].(string))
-		}
-
 		file, err := os.Open(puppetfile)
 		if err != nil {
 			log.Fatal(err)
@@ -131,12 +131,18 @@ func main() {
 			&sync.Mutex{},
 			make(map[string]bool)}
 
+		if cliOpts["environment"] == false {
+			environmentRootFolder = "."
+		} else {
+			environmentRootFolder = path.Join("environment", cliOpts["<ENV>"].(string))
+		}
+
 		for w := 1; w <= numWorkers; w++ {
-			go cloneWorker(modulesChan, &modules, cache, &wg, environment)
+			go cloneWorker(modulesChan, &modules, cache, &wg, environmentRootFolder)
 		}
 
 		parser := PuppetFileParser{}
-		parser.parse(file, modulesChan, &wg, environment)
+		parser.parse(file, modulesChan, &wg)
 
 		wg.Wait()
 		close(modulesChan)
