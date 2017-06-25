@@ -19,6 +19,11 @@ type ForgeModule struct {
 	name                string
 	version_requirement string
 	targetFolder        string
+	cacheFolder         string
+}
+
+func (m *ForgeModule) SetCacheFolder(folder string) {
+	m.cacheFolder = folder
 }
 
 func (m *ForgeModule) Hash() string {
@@ -119,7 +124,7 @@ func (m *ForgeModule) gunzip(r io.Reader, targetFolder string) error {
 	return nil
 }
 
-func (m *ForgeModule) Download(cache Cache) (string, error) {
+func (m *ForgeModule) Download() error {
 	var err error
 
 	forgeUrl := "https://forgeapi.puppetlabs.com:443/"
@@ -132,31 +137,31 @@ func (m *ForgeModule) Download(cache Cache) (string, error) {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		return "", &ForgeDownloadError{err, true}
+		return &ForgeDownloadError{err, true}
 	}
 
 	defer resp.Body.Close()
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", &ForgeDownloadError{err, true}
+		return &ForgeDownloadError{err, true}
 	}
 
 	var mr ModuleReleases
 	err = json.Unmarshal(body, &mr)
 	if err != nil {
-		return "", &ForgeDownloadError{err, true}
+		return &ForgeDownloadError{err, true}
 	}
 	if len(mr.Results) > 0 {
 		forgeArchive, err := http.Get(forgeUrl + mr.Results[0].File_uri)
 		if err != nil {
-			return "", &ForgeDownloadError{fmt.Errorf("Failed retrieving %s", forgeUrl+mr.Results[0].File_uri), true}
+			return &ForgeDownloadError{fmt.Errorf("Failed retrieving %s", forgeUrl+mr.Results[0].File_uri), true}
 		}
 		defer forgeArchive.Body.Close()
 		if err = m.gunzip(forgeArchive.Body, m.TargetFolder()); err != nil {
-			return "", &ForgeDownloadError{err, true}
+			return &ForgeDownloadError{err, true}
 		}
 	} else {
-		return "", &ForgeDownloadError{fmt.Errorf("Could not find module %s", m.Name()), true}
+		return &ForgeDownloadError{fmt.Errorf("Could not find module %s", m.Name()), true}
 	}
-	return "", nil
+	return nil
 }
