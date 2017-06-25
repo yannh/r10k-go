@@ -104,9 +104,8 @@ func (p *PuppetFileParser) compute(m PuppetModule, opts map[string]string) Puppe
 	modulePath, ok := opts["modulePath"]
 	if !ok {
 		modulePath = "modules"
-	} else {
-		modulePath = modulePath
 	}
+
 	splitPath := strings.Split(m.Name(), "/")
 	folderName := splitPath[len(splitPath)-1]
 	m.SetTargetFolder(path.Join(modulePath, folderName))
