@@ -1,5 +1,12 @@
 language: go
 
+addons:
+  apt:
+    sources:
+      - sourceline: 'ppa:git-core/ppa'
+    packages:
+      - git
+
 matrix:
   include:
     - go: 1.6
