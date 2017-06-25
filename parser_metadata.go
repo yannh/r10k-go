@@ -1,10 +1,12 @@
 package main
 
-import "io"
-import "encoding/json"
-import "io/ioutil"
-import "sync"
-import "strings"
+import (
+	"encoding/json"
+	"io"
+	"io/ioutil"
+	"strings"
+	"sync"
+)
 
 type Metadata struct {
 	Name         string

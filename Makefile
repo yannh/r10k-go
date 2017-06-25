@@ -2,7 +2,10 @@
 
 .PHONY: all go-deps unit-tests test build integration-tests
 
-all: go-deps test build integration-tests
+all: clean go-deps test build integration-tests
+
+clean:
+	rm -rf .tmp modules r10k-go
 
 go-deps:
 	go get -t ./...

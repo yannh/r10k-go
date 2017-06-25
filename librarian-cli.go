@@ -7,11 +7,12 @@ func cli() map[string]interface{} {
 	usage := `librarian-go
 
   Usage:
-    librarian-go install [--path=<PATH>] [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
+    librarian-go install [--puppetfile=<PUPPETFILE>]  [--environment=<ENVIRONMENT>] [--workers=<workers>]
     librarian-go git_status
     librarian-go update
 
   Options:
+    --modulesPath=<PATH>     Path to the modules folder
     -h --help                Show this screen.`
 
 	opts, _ := docopt.Parse(usage, nil, true, "r10k-go", false)
