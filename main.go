@@ -100,8 +100,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Println(cliOpts)
-
 	if cliOpts["install"] == true || cliOpts["deploy"] == true {
 		if cliOpts["--workers"] == nil {
 			numWorkers = 4

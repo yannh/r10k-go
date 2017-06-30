@@ -21,5 +21,5 @@ build:
 
 integration-tests:
 ifdef RUN_INTEGRATION_TESTS
-	./r10k-go install --puppetfile test-fixtures/Puppetfile
+	bats tests/integration-tests.bats
 endif
