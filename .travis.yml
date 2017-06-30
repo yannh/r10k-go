@@ -4,8 +4,10 @@ addons:
   apt:
     sources:
       - sourceline: 'ppa:git-core/ppa'
+      - sourceline: 'ppa:duggan/bats'
     packages:
       - git
+      - bats
 
 matrix:
   include:
