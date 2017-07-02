@@ -29,7 +29,8 @@ func (p *MetadataParser) parse(r io.Reader, modulesChan chan PuppetModule, wg *s
 	json.Unmarshal(metadataFile, &meta)
 	for _, req := range meta.Dependencies {
 		wg.Add(1)
-		modulesChan <- p.compute(&ForgeModule{name: req.Name, version_requirement: req.Version_requirement})
+		// modulesChan <- p.compute(&ForgeModule{name: req.Name, version_requirement: req.Version_requirement})
+		modulesChan <- p.compute(&ForgeModule{name: req.Name})
 	}
 
 	return nil
