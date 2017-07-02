@@ -1,0 +1,7 @@
+---
+cachedir: /var/cache/r10k
+sources:
+ puppet:
+   basedir: /etc/puppet/environments
+   prefix: false
+   remote: git@code.earth.planet.com:puppet/r10k_control.git
