@@ -6,6 +6,12 @@ Deployments using r10k/librarian on large Puppetfiles (>100 modules) can end up 
 
 It tries to improve on https://github.com/xorpaul/g10k/ by limitting the number of downloads than can run in parallel, trying to be closer to the behaviour of r10k/librarian, and implementing a retry mechanism.
 
+```
+Usage:
+    librarian-go install [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
+    librarian-go deploy environment <ENV> [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
+```
+
 # Currently implemented
 
 * Caches GIt repositories, and uses Git worktrees to make them available to different environments
