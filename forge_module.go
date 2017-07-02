@@ -66,6 +66,17 @@ type ModuleReleases struct {
 	}
 }
 
+func (m *ForgeModule) downloadToCache(r io.Reader) error {
+	os.MkdirAll(path.Join(m.cacheFolder), 0755)
+
+	out, err := os.Create(path.Join(m.cacheFolder, m.version+".tar.gz"))
+	defer out.Close()
+
+	_, err = io.Copy(out, r)
+
+	return err
+}
+
 func (m *ForgeModule) gunzip(r io.Reader, targetFolder string) error {
 	gzf, err := gzip.NewReader(r)
 	if err != nil {
@@ -176,6 +187,8 @@ func (m *ForgeModule) Download() error {
 		if !versionFound {
 			return &ForgeDownloadError{fmt.Errorf("Could not find version %s for module %s", m.version, m.Name()), false}
 		}
+	} else {
+		m.version = mr.Results[0].Version
 	}
 
 	forgeArchive, err := http.Get(forgeUrl + mr.Results[index].File_uri)
@@ -183,7 +196,13 @@ func (m *ForgeModule) Download() error {
 		return &ForgeDownloadError{fmt.Errorf("Failed retrieving %s", forgeUrl+mr.Results[index].File_uri), true}
 	}
 	defer forgeArchive.Body.Close()
-	if err = m.gunzip(forgeArchive.Body, m.TargetFolder()); err != nil {
+
+	m.downloadToCache(forgeArchive.Body)
+
+	r, _ := os.Open(path.Join(m.cacheFolder, m.version+".tar.gz"))
+	defer r.Close()
+
+	if err = m.gunzip(r, m.TargetFolder()); err != nil {
 		return &ForgeDownloadError{err, true}
 	}
 	return nil
