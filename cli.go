@@ -7,8 +7,8 @@ func cli() map[string]interface{} {
 	usage := `librarian-go
 
   Usage:
-    librarian-go install [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
-    librarian-go deploy environment <ENV> [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
+    r10k-go install [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
+    r10k-go deploy environment <ENV> [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
 
   Options:
     --modulesPath=<PATH>     Path to the modules folder
