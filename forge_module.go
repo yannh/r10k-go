@@ -16,14 +16,20 @@ import (
 )
 
 type ForgeModule struct {
-	name                string
-	version_requirement string
-	targetFolder        string
-	cacheFolder         string
+	name    string
+	version string
+	// version_requirement string  ignored for now
+	targetFolder string
+	cacheFolder  string
 }
 
 func (m *ForgeModule) SetCacheFolder(folder string) {
 	m.cacheFolder = folder
+}
+
+func (m *ForgeModule) IsUpToDate() bool {
+	_, err := os.Stat(m.TargetFolder())
+	return err == nil
 }
 
 func (m *ForgeModule) Hash() string {
@@ -56,6 +62,7 @@ func (m *ForgeModule) TargetFolder() string {
 type ModuleReleases struct {
 	Results []struct {
 		File_uri string
+		Version  string
 	}
 }
 
@@ -133,7 +140,7 @@ func (m *ForgeModule) Download() error {
 	url := forgeUrl + ApiVersion + "/releases?" +
 		"module=" + m.Name() +
 		"&sort_by=release_date" +
-		"&limit=1"
+		"&limit=100"
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -148,20 +155,36 @@ func (m *ForgeModule) Download() error {
 
 	var mr ModuleReleases
 	err = json.Unmarshal(body, &mr)
+
 	if err != nil {
 		return &ForgeDownloadError{err, true}
+	} else if len(mr.Results) == 0 {
+		return &ForgeDownloadError{fmt.Errorf("Could not find module %s", m.Name()), false}
 	}
-	if len(mr.Results) > 0 {
-		forgeArchive, err := http.Get(forgeUrl + mr.Results[0].File_uri)
-		if err != nil {
-			return &ForgeDownloadError{fmt.Errorf("Failed retrieving %s", forgeUrl+mr.Results[0].File_uri), true}
+
+	// If version is not specified, we pick the latest version
+	index := 0
+	if m.version != "" {
+		versionFound := false
+		for i, result := range mr.Results {
+			if m.version == result.Version {
+				versionFound = true
+				index = i
+				break
+			}
 		}
-		defer forgeArchive.Body.Close()
-		if err = m.gunzip(forgeArchive.Body, m.TargetFolder()); err != nil {
-			return &ForgeDownloadError{err, true}
+		if !versionFound {
+			return &ForgeDownloadError{fmt.Errorf("Could not find version %s for module %s", m.version, m.Name()), false}
 		}
-	} else {
-		return &ForgeDownloadError{fmt.Errorf("Could not find module %s", m.Name()), true}
+	}
+
+	forgeArchive, err := http.Get(forgeUrl + mr.Results[index].File_uri)
+	if err != nil {
+		return &ForgeDownloadError{fmt.Errorf("Failed retrieving %s", forgeUrl+mr.Results[index].File_uri), true}
+	}
+	defer forgeArchive.Body.Close()
+	if err = m.gunzip(forgeArchive.Body, m.TargetFolder()); err != nil {
+		return &ForgeDownloadError{err, true}
 	}
 	return nil
 }

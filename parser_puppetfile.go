@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
 	"path"
 	"strings"
@@ -12,15 +13,24 @@ import (
 type PuppetFileParser struct {
 }
 
+func (p *PuppetFileParser) parseParameter(line string) string {
+	if strings.Contains(line, "=>") {
+		return strings.Trim(strings.Split(line, "=>")[1], " \"'")
+	} else {
+		return strings.Trim(strings.SplitN(line, ":", 3)[2], " \"'")
+	}
+}
+
 func (p *PuppetFileParser) parseModule(line string) (PuppetModule, error) {
-	var name, repoUrl, moduleType, installPath, ref, targetFolder string
+	var name, repoUrl, moduleType, installPath, targetFolder, version string
+	var tag, ref, branch = "", "", ""
 
 	line = strings.TrimSpace(line)
 	if !strings.HasPrefix(line, "mod") {
 		return &GitModule{}, errors.New("Error: Module definition not starting with mod")
 	}
 
-	for _, part := range strings.Split(line, ",") {
+	for index, part := range strings.Split(line, ",") {
 		part = strings.TrimSpace(part)
 		switch {
 		case strings.HasPrefix(part, "mod"):
@@ -28,22 +38,52 @@ func (p *PuppetFileParser) parseModule(line string) (PuppetModule, error) {
 				return r == '\'' || r == '"'
 			})[1]
 
+		// A line will contain : if it's in the form :tag: value or :tag => value
+		// if not then it must be a version string, and no further parameter is allowed
+		case index == 1 && !strings.Contains(part, "=>") && part != ":latest" && !strings.Contains(part, ":"):
+			moduleType = "forge"
+			version = strings.Trim(part, " \"'")
+			break
+
 		case strings.HasPrefix(part, ":git"):
 			moduleType = "git"
-			repoUrl = strings.Trim(strings.Split(part, "=>")[1], " \"'")
+			repoUrl = p.parseParameter(part)
 
 		case strings.HasPrefix(part, ":install_path"):
-			installPath = strings.Trim(strings.Split(part, "=>")[1], " \"'")
+			installPath = p.parseParameter(part)
 
-		case strings.HasPrefix(part, ":tag") || strings.HasPrefix(part, ":ref") || strings.HasPrefix(part, ":branch"):
-			ref = strings.Trim(strings.Split(part, "=>")[1], " \"'")
+		case strings.HasPrefix(part, ":tag"):
+			tag = p.parseParameter(part)
+
+		case strings.HasPrefix(part, ":ref"):
+			ref = p.parseParameter(part)
+
+		case strings.HasPrefix(part, ":branch"):
+			branch = p.parseParameter(part)
+
+		default:
+			fmt.Println("Unsupported parameter: " + part)
 		}
 	}
 
 	if moduleType == "git" {
-		return &GitModule{name, repoUrl, installPath, ref, targetFolder, ""}, nil
+		return &GitModule{
+			name:        name,
+			repoUrl:     repoUrl,
+			installPath: installPath,
+			want: struct {
+				ref    string
+				tag    string
+				branch string
+			}{
+				ref,
+				tag,
+				branch,
+			},
+			targetFolder: targetFolder,
+			cacheFolder:  ""}, nil
 	} else {
-		return &ForgeModule{name: name}, nil
+		return &ForgeModule{name: name, version: version}, nil
 	}
 }
 

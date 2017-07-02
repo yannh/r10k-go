@@ -9,8 +9,6 @@ func cli() map[string]interface{} {
   Usage:
     librarian-go install [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
     librarian-go deploy environment <ENV> [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
-    librarian-go git_status
-    librarian-go update
 
   Options:
     --modulesPath=<PATH>     Path to the modules folder

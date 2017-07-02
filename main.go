@@ -20,6 +20,7 @@ type PuppetModule interface {
 	TargetFolder() string
 	SetCacheFolder(string)
 	Hash() string
+	IsUpToDate() bool
 }
 
 type Parser interface {
@@ -42,6 +43,7 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 	var ok bool
 
 	parser := MetadataParser{}
+
 	maxTries := 3
 	retryDelay := 3 * time.Second
 
@@ -59,7 +61,10 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 		modules.Unlock()
 
 		derr = nil
-		if _, err = os.Stat(m.TargetFolder()); err != nil {
+		if !m.IsUpToDate() {
+			cwd, _ := os.Getwd()
+			os.RemoveAll(path.Join(cwd, m.TargetFolder()))
+
 			if err = m.Download(); err != nil {
 				derr, ok = err.(DownloadError)
 				for i := 0; err != nil && i < maxTries-1 && ok && derr.Retryable(); i++ {
@@ -94,6 +99,16 @@ func main() {
 	var numWorkers int
 	var puppetfile, environmentRootFolder string
 	var cache Cache
+
+	if _, err = os.Stat("test-fixtures/r10k.yaml"); err == nil {
+		f, err := os.Open("test-fixtures/r10k.yaml")
+		if err != nil {
+			log.Fatal("Error opening configuration")
+		}
+
+		defer f.Close()
+		parseConfig(f)
+	}
 
 	cliOpts := cli()
 	if cache, err = NewCache(".tmp"); err != nil {
