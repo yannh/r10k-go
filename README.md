@@ -8,8 +8,8 @@ It tries to improve on https://github.com/xorpaul/g10k/ by limitting the number 
 
 ```
 Usage:
-    librarian-go install [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
-    librarian-go deploy environment <ENV> [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
+    r10k-go install [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
+    r10k-go deploy environment <ENV> [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
 ```
 
 # Currently implemented
