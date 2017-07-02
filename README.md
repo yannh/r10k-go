@@ -12,13 +12,13 @@ Usage:
     r10k-go deploy environment <ENV> [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
 ```
 
-# Currently implemented
+## Currently implemented
 
 * Caches GIt repositories, and uses Git worktrees to make them available to different environments
 * Will download the right tag/ref/branch of GIT modules if specified
 * Will download the right version of Forge modules
 
-# Not yet implemented
+## Not yet implemented
 
 * Complex version requirements for forge modules (can only give a specific version)
 * Support for r10k configuration files. Complex environment management is being actively worked on.
