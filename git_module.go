@@ -159,10 +159,6 @@ func (m *GitModule) Download() error {
 		}
 	}
 
-	if m.IsUpToDate() {
-		return nil
-	}
-
 	gc := m.gitCommand()
 	cmd = exec.Command(gc[0], gc[1:]...)
 	cmd.Dir = m.cacheFolder
