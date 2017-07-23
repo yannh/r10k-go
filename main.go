@@ -28,8 +28,9 @@ type Parser interface {
 }
 
 type DownloadResult struct {
-	err DownloadError
-	m   *PuppetModule
+	err       DownloadError
+	willRetry bool
+	m         *PuppetModule
 }
 
 type DownloadError interface {
@@ -50,10 +51,10 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDep
 	parser := MetadataParser{}
 
 	maxTries := 3
-	retryDelay := 3 * time.Second
+	retryDelay := 5 * time.Second
 
 	for m := range c {
-		dr := DownloadResult{err: nil, m: &m}
+		dr := DownloadResult{err: nil, willRetry: false, m: &m}
 
 		m.SetCacheFolder(path.Join(cache.folder, m.Hash()))
 		m.SetTargetFolder(path.Join(environmentRootFolder, m.TargetFolder()))
@@ -75,16 +76,22 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDep
 			if err = m.Download(); err != nil {
 				derr, ok = err.(DownloadError)
 				for i := 0; err != nil && i < maxTries-1 && ok && derr.Retryable(); i++ {
+					dr.err = derr
+					dr.willRetry = true
+					resultsChan <- dr
+
 					time.Sleep(retryDelay)
 					err = m.Download()
 					derr, ok = err.(DownloadError)
 				}
 			}
 
-			if derr == nil {
-			} else {
+			if derr != nil {
+				dr.willRetry = false
 				dr.err = derr
 			}
+
+			resultsChan <- dr
 		}
 
 		if downloadDeps {
@@ -97,7 +104,6 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDep
 			}
 		}
 
-		resultsChan <- dr
 		wg.Done()
 	}
 }
@@ -164,16 +170,22 @@ func main() {
 			go cloneWorker(modulesChan, &modules, cache, !cliOpts["--no-deps"].(bool), &wg, environmentRootFolder, resultsChan)
 		}
 
+		resultParsingFinished := make(chan bool)
 		downloadErrors := 0
 		go func() {
 			for res := range resultsChan {
 				if res.err != nil {
-					downloadErrors += 1
-					fmt.Println("Failed downloading " + (*(res.m)).Name())
+					if res.err.Retryable() == true && res.willRetry == true {
+						fmt.Println("Failed downloading " + (*(res.m)).Name() + ": " + res.err.Error() + ". Retrying...")
+					} else {
+						fmt.Println("Failed downloading " + (*(res.m)).Name() + ". Giving up!")
+						downloadErrors += 1
+					}
 				} else {
 					fmt.Println("Downloaded " + (*(res.m)).Name())
 				}
 			}
+			resultParsingFinished <- true
 		}()
 
 		parser := PuppetFileParser{}
@@ -182,6 +194,7 @@ func main() {
 		wg.Wait()
 		close(modulesChan)
 		close(resultsChan)
+		<-resultParsingFinished
 
 		os.Exit(downloadErrors)
 	}
