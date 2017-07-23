@@ -27,6 +27,11 @@ type Parser interface {
 	parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup, environment string) error
 }
 
+type DownloadResult struct {
+	err DownloadError
+	m   *PuppetModule
+}
+
 type DownloadError interface {
 	error
 	Retryable() bool
@@ -37,11 +42,10 @@ type Modules struct {
 	m map[string]bool
 }
 
-func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDeps bool, wg *sync.WaitGroup, environmentRootFolder string, resultsChan chan bool) {
+func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDeps bool, wg *sync.WaitGroup, environmentRootFolder string, resultsChan chan DownloadResult) {
 	var err error
 	var derr DownloadError
 	var ok bool
-	success := false
 
 	parser := MetadataParser{}
 
@@ -49,6 +53,8 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDep
 	retryDelay := 3 * time.Second
 
 	for m := range c {
+		dr := DownloadResult{err: nil, m: &m}
+
 		m.SetCacheFolder(path.Join(cache.folder, m.Hash()))
 		m.SetTargetFolder(path.Join(environmentRootFolder, m.TargetFolder()))
 
@@ -69,7 +75,6 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDep
 			if err = m.Download(); err != nil {
 				derr, ok = err.(DownloadError)
 				for i := 0; err != nil && i < maxTries-1 && ok && derr.Retryable(); i++ {
-					fmt.Println("Failed downloading " + m.Name() + ": " + derr.Error() + ". Retrying...")
 					time.Sleep(retryDelay)
 					err = m.Download()
 					derr, ok = err.(DownloadError)
@@ -77,14 +82,9 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDep
 			}
 
 			if derr == nil {
-				fmt.Println("Downloaded " + m.Name() + " to " + m.TargetFolder())
-				success = true
 			} else {
-				fmt.Println("Failed downloading " + m.Name() + ": " + derr.Error() + ". Giving up")
+				dr.err = derr
 			}
-		} else {
-			// Module already downloaded and up-to-date
-			success = true
 		}
 
 		if downloadDeps {
@@ -97,7 +97,7 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDep
 			}
 		}
 
-		resultsChan <- success
+		resultsChan <- dr
 		wg.Done()
 	}
 }
@@ -158,7 +158,7 @@ func main() {
 			environmentRootFolder = path.Join("environment", cliOpts["<ENV>"].(string))
 		}
 
-		resultsChan := make(chan bool)
+		resultsChan := make(chan DownloadResult)
 
 		for w := 1; w <= numWorkers; w++ {
 			go cloneWorker(modulesChan, &modules, cache, !cliOpts["--no-deps"].(bool), &wg, environmentRootFolder, resultsChan)
@@ -166,9 +166,12 @@ func main() {
 
 		downloadErrors := 0
 		go func() {
-			for success := range resultsChan {
-				if success == false {
+			for res := range resultsChan {
+				if res.err != nil {
 					downloadErrors += 1
+					fmt.Println("Failed downloading " + (*(res.m)).Name())
+				} else {
+					fmt.Println("Downloaded " + (*(res.m)).Name())
 				}
 			}
 		}()

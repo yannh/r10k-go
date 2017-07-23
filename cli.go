@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/docopt/docopt-go"
 )
 
@@ -16,14 +15,14 @@ Usage:
   r10k-go --version
 
 Options:
+  -h --help                   Show this screen.
   --modulesPath=<PATH>        Path to the modules folder
   --no-deps                   Skip downloading modules dependencies
   --puppetFile=<PUPPETFILE>   Path to the modules folder
+  --version                   Displays the version.
   --workers=<n>               Number of modules to download in parallel
-  -h --help                   Show this screen.
 `
 
-	opts, _ := docopt.Parse(usage, nil, true, "0.1", true)
-	fmt.Println(opts)
+	opts, _ := docopt.Parse(usage, nil, true, "0.1", false)
 	return opts
 }
