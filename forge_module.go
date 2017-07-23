@@ -72,25 +72,24 @@ func (m *ForgeModule) downloadToCache(r io.Reader) error {
 	return err
 }
 
-
 func (m *ForgeModule) IsUpToDate() bool {
 	_, err := os.Stat(m.TargetFolder())
 	if err != nil {
 		return false
 	} else if m.version == "" {
 		// Module is present and no version specified...
-	  return true
+		return true
 	}
 
 	versionFile := path.Join(m.TargetFolder(), ".version")
 	version, err := ioutil.ReadFile(versionFile)
 	if err != nil {
-		fmt.Println("Error opening version file :"+ err.Error())
+		fmt.Println("Error opening version file :" + err.Error())
 		return false
 	}
 	v := string(version)
-  fmt.Println(v + "vs" + m.version)
-  return v == m.version
+
+	return v == m.version
 }
 
 func (m *ForgeModule) gunzip(r io.Reader, targetFolder string) error {
@@ -158,7 +157,6 @@ func (m *ForgeModule) gunzip(r io.Reader, targetFolder string) error {
 	return nil
 }
 
-
 func (m *ForgeModule) getDownloadUrl() (string, error) {
 	forgeUrl := "https://forgeapi.puppetlabs.com:443/"
 	ApiVersion := "v3"
@@ -211,21 +209,21 @@ func (m *ForgeModule) getDownloadUrl() (string, error) {
 
 func (m *ForgeModule) Download() error {
 	var err error
-  var url string
+	var url string
 
 	forgeUrl := "https://forgeapi.puppetlabs.com:443/"
 	if url, err = m.getDownloadUrl(); err != nil {
-	  return err
+		return err
 	}
 
 	if _, err = os.Stat(path.Join(m.cacheFolder, m.version+".tar.gz")); err != nil {
-    forgeArchive, err := http.Get(forgeUrl + url)
-    if err != nil {
-    return &ForgeDownloadError{fmt.Errorf("Failed retrieving %s", forgeUrl+url), true}
-    }
-    defer forgeArchive.Body.Close()
+		forgeArchive, err := http.Get(forgeUrl + url)
+		if err != nil {
+			return &ForgeDownloadError{fmt.Errorf("Failed retrieving %s", forgeUrl+url), true}
+		}
+		defer forgeArchive.Body.Close()
 
-    m.downloadToCache(forgeArchive.Body)
+		m.downloadToCache(forgeArchive.Body)
 	}
 	r, _ := os.Open(path.Join(m.cacheFolder, m.version+".tar.gz"))
 	defer r.Close()
