@@ -16,3 +16,8 @@ setup() {
   [ "$status" -eq 0 ]
   [[ "$output" = *"Downloaded voxpopuli/nginx"* ]]
 }
+
+@test "should fail if module has incorrect URL" {
+  run ./r10k-go install --puppetfile test-fixtures/Puppetfile-wrong.url
+  [ "$status" -neq 0 ]
+}
