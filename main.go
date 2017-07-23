@@ -37,7 +37,7 @@ type Modules struct {
 	m map[string]bool
 }
 
-func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.WaitGroup, environmentRootFolder string, resultsChan chan bool) {
+func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDeps bool, wg *sync.WaitGroup, environmentRootFolder string, resultsChan chan bool) {
 	var err error
 	var derr DownloadError
 	var ok bool
@@ -87,12 +87,14 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 			success = true
 		}
 
-		if file, err := os.Open(path.Join(m.TargetFolder(), "metadata.json")); err == nil {
-			wg.Add(1)
-			go func() {
-				parser.parse(file, c, wg)
-				file.Close()
-			}()
+		if downloadDeps {
+			if file, err := os.Open(path.Join(m.TargetFolder(), "metadata.json")); err == nil {
+				wg.Add(1)
+				go func() {
+					parser.parse(file, c, wg)
+					file.Close()
+				}()
+			}
 		}
 
 		resultsChan <- success
@@ -159,7 +161,7 @@ func main() {
 		resultsChan := make(chan bool)
 
 		for w := 1; w <= numWorkers; w++ {
-			go cloneWorker(modulesChan, &modules, cache, &wg, environmentRootFolder, resultsChan)
+			go cloneWorker(modulesChan, &modules, cache, !cliOpts["--no-deps"].(bool), &wg, environmentRootFolder, resultsChan)
 		}
 
 		downloadErrors := 0
