@@ -37,10 +37,11 @@ type Modules struct {
 	m map[string]bool
 }
 
-func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.WaitGroup, environmentRootFolder string) {
+func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.WaitGroup, environmentRootFolder string, resultsChan chan bool) {
 	var err error
 	var derr DownloadError
 	var ok bool
+	success := false
 
 	parser := MetadataParser{}
 
@@ -77,9 +78,13 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 
 			if derr == nil {
 				fmt.Println("Downloaded " + m.Name() + " to " + m.TargetFolder())
+				success = true
 			} else {
 				fmt.Println("Failed downloading " + m.Name() + ": " + derr.Error() + ". Giving up")
 			}
+		} else {
+			// Module already downloaded and up-to-date
+			success = true
 		}
 
 		if file, err := os.Open(path.Join(m.TargetFolder(), "metadata.json")); err == nil {
@@ -90,6 +95,7 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, wg *sync.Wa
 			}()
 		}
 
+		resultsChan <- success
 		wg.Done()
 	}
 }
@@ -150,14 +156,28 @@ func main() {
 			environmentRootFolder = path.Join("environment", cliOpts["<ENV>"].(string))
 		}
 
+		resultsChan := make(chan bool)
+
 		for w := 1; w <= numWorkers; w++ {
-			go cloneWorker(modulesChan, &modules, cache, &wg, environmentRootFolder)
+			go cloneWorker(modulesChan, &modules, cache, &wg, environmentRootFolder, resultsChan)
 		}
+
+		downloadErrors := 0
+		go func() {
+			for success := range resultsChan {
+				if success == false {
+					downloadErrors += 1
+				}
+			}
+		}()
 
 		parser := PuppetFileParser{}
 		parser.parse(file, modulesChan, &wg)
 
 		wg.Wait()
 		close(modulesChan)
+		close(resultsChan)
+
+		os.Exit(downloadErrors)
 	}
 }
