@@ -19,5 +19,5 @@ setup() {
 
 @test "should fail if module has incorrect URL" {
   run ./r10k-go install --puppetfile test-fixtures/Puppetfile-wrong.url
-  [ "$status" -neq 0 ]
+  [ "$status" -ne 0 ]
 }
