@@ -14,5 +14,5 @@ setup() {
 @test "invocation with test puppetfile succeeds" {
   run ./r10k-go install --puppetfile test-fixtures/Puppetfile-simple
   [ "$status" -eq 0 ]
-  [[ "$output" = *"Downloaded voxpopuli/nginx to modules/nginx"* ]]
+  [[ "$output" = *"Downloaded voxpopuli/nginx"* ]]
 }
