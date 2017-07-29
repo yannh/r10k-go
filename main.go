@@ -22,6 +22,20 @@ type PuppetModule interface {
 	IsUpToDate() bool
 }
 
+type DownloadError struct {
+	error
+	retryable bool
+}
+
+type retryableError interface {
+	error
+	Retryable() bool
+}
+
+func (de *DownloadError) Retryable() bool {
+	return de.retryable
+}
+
 type Parser interface {
 	parse(r io.Reader, modulesChan chan<- PuppetModule) (int, error)
 }
@@ -32,11 +46,6 @@ type DownloadResult struct {
 	m         PuppetModule
 }
 
-type DownloadError interface {
-	error
-	Retryable() bool
-}
-
 func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 	var derr DownloadError
 	var ok bool
@@ -45,9 +54,9 @@ func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 	retryDelay := 5 * time.Second
 
 	for m := range c {
-		dr := DownloadResult{err: nil, willRetry: false, m: m}
+		derr = DownloadError{nil, false}
+		dr := DownloadResult{err: derr, m: m}
 
-		derr = nil
 		if !m.IsUpToDate() {
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -57,7 +66,7 @@ func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 
 			if err = m.Download(); err != nil {
 				derr, ok = err.(DownloadError)
-				for i := 0; ok && derr != nil && i < maxTries-1 && derr.Retryable(); i++ {
+				for i := 0; ok && derr.error != nil && i < maxTries-1 && derr.Retryable(); i++ {
 					dr.err = derr
 					dr.willRetry = true
 					results <- dr
@@ -68,7 +77,7 @@ func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 				}
 			}
 
-			if derr != nil {
+			if derr.error != nil {
 				dr.willRetry = false
 				dr.err = derr
 			}
@@ -118,11 +127,11 @@ func parseModuleFiles(puppetFiles <-chan *PuppetFile, metadataFiles <-chan *Meta
 	done <- true
 }
 
-func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFiles chan<- *MetadataFile, wg *sync.WaitGroup, done chan<- bool) {
+func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFiles chan<- *MetadataFile, wg *sync.WaitGroup, errorsCount chan<- int) {
 	downloadErrors := 0
 
 	for res := range results {
-		if res.err != nil {
+		if res.err.error != nil {
 			if res.err.Retryable() == true && res.willRetry == true {
 				log.Println("Failed downloading " + res.m.Name() + ": " + res.err.Error() + ". Retrying...")
 			} else {
@@ -145,7 +154,7 @@ func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFile
 		}
 	}
 
-	done <- true
+	errorsCount <- downloadErrors
 }
 
 func main() {
@@ -193,12 +202,12 @@ func main() {
 		var wg sync.WaitGroup
 		puppetFiles := make(chan *PuppetFile)
 		metadataFiles := make(chan *MetadataFile)
-		downloadErrors := 0
 
 		done := make(chan bool)
+		errorCount := make(chan int)
 		go parseModuleFiles(puppetFiles, metadataFiles, modules, &wg, done)
 		go deduplicate(modules, modulesDeduplicated, &cache, environmentRootFolder, &wg, done)
-		go parseResults(results, !cliOpts["--no-deps"].(bool), metadataFiles, &wg, done)
+		go parseResults(results, !cliOpts["--no-deps"].(bool), metadataFiles, &wg, errorCount)
 
 		file, err := os.Open(puppetfile)
 		if err != nil {
@@ -208,18 +217,18 @@ func main() {
 
 		wg.Add(1)
 		puppetFiles <- &PuppetFile{file}
-		wg.Wait()
 
+		// +1 For every file being processed or module in the queue
+		wg.Wait()
 		close(modules)
 		close(modulesDeduplicated)
 		close(puppetFiles)
 		close(metadataFiles)
 		close(results)
 
-		for i := 0; i < 3; i++ {
-			<-done
-		}
+		<-done
+		<-done
 
-		os.Exit(downloadErrors)
+		os.Exit(<-errorCount)
 	}
 }
