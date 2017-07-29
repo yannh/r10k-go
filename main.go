@@ -37,7 +37,7 @@ type DownloadError interface {
 	Retryable() bool
 }
 
-func cloneWorker(c chan PuppetModule, cache Cache, environmentRootFolder string, resultsChan chan DownloadResult) {
+func downloadModules(c chan PuppetModule, cache Cache, environmentRootFolder string, resultsChan chan DownloadResult) {
 	var err error
 	var derr DownloadError
 	var ok bool
@@ -79,6 +79,86 @@ func cloneWorker(c chan PuppetModule, cache Cache, environmentRootFolder string,
 	}
 }
 
+func deduplicate(in <-chan PuppetModule, out chan<- PuppetModule, wg *sync.WaitGroup, done chan<- bool) {
+	modules := make(map[string]bool)
+
+	for {
+		select {
+		case m, ok := <-in:
+			if ok {
+				if _, ok := modules[m.Name()]; !ok {
+					modules[m.Name()] = true
+					wg.Add(1)
+					out <- m
+				}
+			} else {
+				in = nil
+			}
+		}
+
+		if in == nil {
+			break
+		}
+	}
+	done <- true
+}
+
+func parseModuleFiles(puppetFiles <-chan *PuppetFile, metadataFiles <-chan *MetadataFile, modules chan PuppetModule, wg *sync.WaitGroup, done chan<- bool) {
+	for {
+		select {
+		case f, ok := <-puppetFiles:
+			if ok {
+				(&PuppetFile{f}).parse(modules)
+				wg.Done()
+			} else {
+				puppetFiles = nil
+			}
+		case f, ok := <-metadataFiles:
+			if ok {
+				(&MetadataFile{f}).parse(modules)
+				wg.Done()
+			} else {
+				metadataFiles = nil
+			}
+		}
+
+		if puppetFiles == nil && metadataFiles == nil {
+			break
+		}
+	}
+	done <- true
+}
+
+func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFiles chan<- *MetadataFile, wg *sync.WaitGroup, done chan<- bool) {
+	downloadErrors := 0
+
+	for res := range results {
+		if res.err != nil {
+			if res.err.Retryable() == true && res.willRetry == true {
+				log.Println("Failed downloading " + res.m.Name() + ": " + res.err.Error() + ". Retrying...")
+			} else {
+				log.Println("Failed downloading " + res.m.Name() + ". Giving up!")
+				downloadErrors += 1
+				wg.Done()
+			}
+		} else {
+			log.Println("Downloaded " + res.m.Name())
+
+			if downloadDeps {
+				if file, err := os.Open(path.Join(res.m.TargetFolder(), "metadata.json")); err == nil {
+					wg.Add(1)
+					go func() {
+						metadataFiles <- &MetadataFile{file}
+					}()
+				}
+			}
+			wg.Done()
+		}
+	}
+
+	done <- true
+}
+
 func main() {
 	var err error
 	var numWorkers int
@@ -106,8 +186,6 @@ func main() {
 			puppetfile = cliOpts["--puppetfile"].(string)
 		}
 
-		var wg sync.WaitGroup
-
 		if cliOpts["environment"] == false {
 			environmentRootFolder = "."
 		} else {
@@ -115,101 +193,22 @@ func main() {
 		}
 
 		results := make(chan DownloadResult)
-
-		modulesUnfiltered := make(chan PuppetModule)
-		modulesFiltered := make(chan PuppetModule)
+		modules := make(chan PuppetModule)
+		modulesDeduplicated := make(chan PuppetModule)
 
 		for w := 1; w <= numWorkers; w++ {
-			go cloneWorker(modulesFiltered, cache, environmentRootFolder, results)
+			go downloadModules(modulesDeduplicated, cache, environmentRootFolder, results)
 		}
 
+		var wg sync.WaitGroup
 		puppetFiles := make(chan *PuppetFile)
 		metadataFiles := make(chan *MetadataFile)
-		resultParsingFinished := make(chan bool)
 		downloadErrors := 0
-		go func() {
-			for res := range results {
-				if res.err != nil {
-					if res.err.Retryable() == true && res.willRetry == true {
-						log.Println("Failed downloading " + res.m.Name() + ": " + res.err.Error() + ". Retrying...")
-					} else {
-						log.Println("Failed downloading " + res.m.Name() + ". Giving up!")
-						downloadErrors += 1
-						wg.Done()
-					}
-				} else {
-					log.Println("Downloaded " + res.m.Name())
 
-					if !cliOpts["--no-deps"].(bool) {
-						if file, err := os.Open(path.Join(res.m.TargetFolder(), "metadata.json")); err == nil {
-							wg.Add(1)
-							go func() {
-								metadataFiles <- &MetadataFile{file}
-							}()
-						}
-					}
-
-					wg.Done()
-				}
-			}
-			resultParsingFinished <- true
-			log.Println("Parsing results finished")
-		}()
-
-
-		modulesFilteringFinished := make(chan bool)
-		go func() {
-			modules := make(map[string]bool)
-
-			for {
-				select {
-				case m, ok := <-modulesUnfiltered:
-					if ok {
-						if _, ok := modules[m.Name()]; !ok {
-							modules[m.Name()] = true
-							wg.Add(1)
-							modulesFiltered <- m
-						}
-					} else {
-						modulesUnfiltered = nil
-					}
-				}
-
-				if modulesUnfiltered == nil {
-					break
-				}
-			}
-			log.Println("Finished filtering modules")
-			modulesFilteringFinished <- true
-		}()
-
-		fileParsingFinished := make(chan bool)
-		go func() {
-			for {
-				select {
-				case f, ok := <-puppetFiles:
-					if ok {
-						(&PuppetFile{f}).parse(modulesUnfiltered)
-						wg.Done()
-					} else {
-						puppetFiles = nil
-					}
-				case f, ok := <-metadataFiles:
-					if ok {
-						(&MetadataFile{f}).parse(modulesUnfiltered)
-						wg.Done()
-					} else {
-						metadataFiles = nil
-					}
-				}
-
-				if puppetFiles == nil && metadataFiles == nil {
-					break
-				}
-			}
-			log.Println("Finished parsing files")
-			fileParsingFinished <- true
-		}()
+		done := make(chan bool)
+		go parseModuleFiles(puppetFiles, metadataFiles, modules, &wg, done)
+		go deduplicate(modules, modulesDeduplicated, &wg, done)
+		go parseResults(results, !cliOpts["--no-deps"].(bool), metadataFiles, &wg, done)
 
 		file, err := os.Open(puppetfile)
 		if err != nil {
@@ -219,18 +218,17 @@ func main() {
 
 		wg.Add(1)
 		puppetFiles <- &PuppetFile{file}
-
 		wg.Wait()
 
-		close(modulesUnfiltered)
-		close(modulesFiltered)
+		close(modules)
+		close(modulesDeduplicated)
 		close(puppetFiles)
 		close(metadataFiles)
 		close(results)
 
-		<-resultParsingFinished
-		<-fileParsingFinished
-		<-modulesFilteringFinished
+		for i := 0; i < 3; i++ {
+			<-done
+		}
 
 		os.Exit(downloadErrors)
 	}
