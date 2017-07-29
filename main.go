@@ -1,6 +1,9 @@
 package main
 
-// TODO: Return 1 if at least one module failed to download
+// TODO: Handle Signals
+// TODO: Pagination for forge and github tarballs
+// Todo: Extract outpud handling / support quiet, debug, json, ...
+// Todo: Remove duplication between github_tarball_module & forge_module
 
 import (
 	"io"
@@ -14,7 +17,7 @@ import (
 
 type PuppetModule interface {
 	Name() string
-	Download() error
+	Download() DownloadError
 	SetTargetFolder(string)
 	TargetFolder() string
 	SetCacheFolder(string)
@@ -42,48 +45,46 @@ type Parser interface {
 
 type DownloadResult struct {
 	err       DownloadError
+	skipped   bool
 	willRetry bool
 	m         PuppetModule
 }
 
 func downloadModules(c chan PuppetModule, results chan DownloadResult) {
-	var derr DownloadError
-	var ok bool
-
 	maxTries := 3
 	retryDelay := 5 * time.Second
 
 	for m := range c {
-		derr = DownloadError{nil, false}
-		dr := DownloadResult{err: derr, m: m}
+		derr := DownloadError{nil, false}
 
-		if !m.IsUpToDate() {
-			cwd, err := os.Getwd()
-			if err != nil {
-				log.Fatal("Error getting current folder: %v", err)
-			}
-			os.RemoveAll(path.Join(cwd, m.TargetFolder()))
-
-			if err = m.Download(); err != nil {
-				derr, ok = err.(DownloadError)
-				for i := 0; ok && derr.error != nil && i < maxTries-1 && derr.Retryable(); i++ {
-					dr.err = derr
-					dr.willRetry = true
-					results <- dr
-
-					time.Sleep(retryDelay)
-					err = m.Download()
-					derr, ok = err.(DownloadError)
-				}
-			}
-
-			if derr.error != nil {
-				dr.willRetry = false
-				dr.err = derr
-			}
+		if m.IsUpToDate() {
+			results <- DownloadResult{err: DownloadError{nil, false}, skipped: true, willRetry: false, m: m}
+			continue
 		}
 
-		results <- dr
+		cwd, err := os.Getwd()
+		if err != nil {
+			log.Fatal("Error getting current folder: %v", err)
+		}
+
+		if err = os.RemoveAll(path.Join(cwd, m.TargetFolder())); err != nil {
+			log.Fatal("Error removing folder: %s", path.Join(cwd, m.TargetFolder()))
+		}
+
+		derr = m.Download()
+		for i := 0; derr.error != nil && i < maxTries-1 && derr.Retryable(); i++ {
+			results <- DownloadResult{err: derr, skipped: false, willRetry: true, m: m}
+			time.Sleep(retryDelay)
+			derr = m.Download()
+		}
+
+		if derr.error != nil {
+			results <- DownloadResult{err: derr, skipped: false, willRetry: false, m: m}
+			continue
+		}
+
+		// Success
+		results <- DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m}
 	}
 }
 
@@ -93,10 +94,11 @@ func deduplicate(in <-chan PuppetModule, out chan<- PuppetModule, cache *Cache, 
 	for m := range in {
 		if _, ok := modules[m.Name()]; !ok {
 			modules[m.Name()] = true
-			wg.Add(1)
 			m.SetTargetFolder(path.Join(environmentRootFolder, m.TargetFolder()))
 			m.SetCacheFolder(path.Join(cache.folder, m.Hash()))
 			out <- m
+		} else {
+		  wg.Done()
 		}
 	}
 	done <- true
@@ -107,14 +109,14 @@ func parseModuleFiles(puppetFiles <-chan *PuppetFile, metadataFiles <-chan *Meta
 		select {
 		case f, ok := <-puppetFiles:
 			if ok {
-				(&PuppetFile{f}).parse(modules)
+				(&PuppetFile{f}).parse(modules, wg)
 				wg.Done()
 			} else {
 				puppetFiles = nil
 			}
 		case f, ok := <-metadataFiles:
 			if ok {
-				(&MetadataFile{f}).parse(modules)
+				(&MetadataFile{f}).parse(modules, wg)
 				wg.Done()
 			} else {
 				metadataFiles = nil
@@ -139,19 +141,23 @@ func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFile
 				downloadErrors += 1
 				wg.Done()
 			}
-		} else {
-			log.Println("Downloaded " + res.m.Name())
-
-			if downloadDeps {
-				if file, err := os.Open(path.Join(res.m.TargetFolder(), "metadata.json")); err == nil {
-					wg.Add(1)
-					go func() {
-						metadataFiles <- &MetadataFile{file}
-					}()
-				}
-			}
-			wg.Done()
+			continue
 		}
+
+		if res.skipped != true {
+			log.Println("Downloaded " + res.m.Name())
+		}
+
+		if downloadDeps {
+			if file, err := os.Open(path.Join(res.m.TargetFolder(), "metadata.json")); err == nil {
+				wg.Add(1)
+				go func() {
+					metadataFiles <- &MetadataFile{file}
+				}()
+			}
+		}
+
+		wg.Done()
 	}
 
 	errorsCount <- downloadErrors
@@ -163,7 +169,7 @@ func main() {
 	var cache Cache
 
 	cliOpts := cli()
-	if cache, err = NewCache(".tmp"); err != nil {
+	if cache, err = NewCache(".cache"); err != nil {
 		log.Fatal(err)
 	}
 
@@ -205,6 +211,7 @@ func main() {
 
 		done := make(chan bool)
 		errorCount := make(chan int)
+
 		go parseModuleFiles(puppetFiles, metadataFiles, modules, &wg, done)
 		go deduplicate(modules, modulesDeduplicated, &cache, environmentRootFolder, &wg, done)
 		go parseResults(results, !cliOpts["--no-deps"].(bool), metadataFiles, &wg, errorCount)
@@ -216,10 +223,12 @@ func main() {
 		defer file.Close()
 
 		wg.Add(1)
+		// TODO: file handler get leaked
 		puppetFiles <- &PuppetFile{file}
 
 		// +1 For every file being processed or module in the queue
 		wg.Wait()
+
 		close(modules)
 		close(modulesDeduplicated)
 		close(puppetFiles)
@@ -228,7 +237,9 @@ func main() {
 
 		<-done
 		<-done
+		nErr := <-errorCount
+		close(errorCount)
 
-		os.Exit(<-errorCount)
+		os.Exit(nErr)
 	}
 }

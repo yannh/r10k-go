@@ -136,13 +136,13 @@ func (m *GitModule) downloadToCache() error {
 	return nil
 }
 
-func (m *GitModule) Download() error {
+func (m *GitModule) Download() DownloadError {
 	var cmd *exec.Cmd
 	var err error
 
 	if _, err := os.Stat(m.cacheFolder); err != nil {
 		if err = m.downloadToCache(); err != nil {
-			return err
+			return DownloadError{error: err, retryable: true}
 		}
 	}
 
@@ -151,8 +151,8 @@ func (m *GitModule) Download() error {
 	cmd.Dir = m.cacheFolder
 
 	if err = cmd.Run(); err != nil {
-		return &DownloadError{error: err, retryable: true}
+		return DownloadError{error: err, retryable: true}
 	}
 
-	return nil
+	return DownloadError{error: nil, retryable: false}
 }

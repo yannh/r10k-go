@@ -1,21 +1,13 @@
-# mod, <module name>, <version or tag>, <source>
-forge "http://forge.puppetlabs.com"
+forge "https://forgeapi.puppetlabs.com"
 
-mod "voxpopuli/nginx",
-  :git => "https://github.com/voxpupuli/puppet-nginx.git"
-mod "voxpopuli/nginx",
-  :git => "https://github.com/voxpupuli/puppet-nginx.git"
-mod "voxpopuli/nginx",
-  :git => "https://github.com/voxpupuli/puppet-nginx.git"
-mod "voxpopuli/nginx",
-  :git => "https://github.com/voxpupuli/puppet-nginx.git"
-mod "voxpopuli/nginx",
-  :git => "https://github.com/voxpupuli/puppet-nginx.git"
-mod "puppetlabs/puppetlabs-apache",
-  :git => "https://github.com/puppetlabs/puppetlabs-apache.git"
-mod "puppetlabs/ntp", "6.1.0"
-mod "puppetlabs/postgresql"
-mod "puppetlabs/mysql"
-mod "puppetlabs/firewall"
-# mod "puppetlabs/puppetlabs-nothinghere",
-#   :git => "git@github.com/puppetlabs/puppetlabs-nothinghere.git"
+mod 'puppetlabs-razor'
+mod 'puppetlabs-ntp', "0.0.3"
+
+mod 'puppetlabs-apt',
+  :git => "git://github.com/puppetlabs/puppetlabs-apt.git"
+
+mod 'puppetlabs-stdlib',
+  :git => "git://github.com/puppetlabs/puppetlabs-stdlib.git"
+
+mod 'puppetlabs-apache', '0.6.0',
+  :github_tarball => 'puppetlabs/puppetlabs-apache'

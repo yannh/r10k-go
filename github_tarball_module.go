@@ -1,7 +1,7 @@
 package main
 
+import "crypto/sha1"
 import (
-	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -12,55 +12,42 @@ import (
 	"path"
 )
 
-type ForgeModule struct {
-	name    string
-	version string
-	// version_requirement string  ignored for now
+type GithubTarballModule struct {
+	name         string
+	repoName     string
+	version      string
 	targetFolder string
 	cacheFolder  string
 }
 
-func (m *ForgeModule) SetCacheFolder(folder string) {
-	m.cacheFolder = folder
+type GHModuleReleases []struct {
+	Name        string
+	Tarball_url string
 }
 
-func (m *ForgeModule) Hash() string {
+func (m *GithubTarballModule) Name() string {
+	return m.name
+}
+
+func (m *GithubTarballModule) SetTargetFolder(targetFolder string) {
+	m.targetFolder = targetFolder
+}
+
+func (m *GithubTarballModule) TargetFolder() string {
+	return m.targetFolder
+}
+
+func (m *GithubTarballModule) SetCacheFolder(cacheFolder string) {
+	m.cacheFolder = cacheFolder
+}
+
+func (m *GithubTarballModule) Hash() string {
 	hasher := sha1.New()
 	hasher.Write([]byte(m.name))
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
-func (m *ForgeModule) Name() string {
-	return m.name
-}
-
-func (m *ForgeModule) SetTargetFolder(folder string) {
-	m.targetFolder = folder
-}
-
-func (m *ForgeModule) TargetFolder() string {
-	return m.targetFolder
-}
-
-type ModuleReleases struct {
-	Results []struct {
-		File_uri string
-		Version  string
-	}
-}
-
-func (m *ForgeModule) downloadToCache(r io.Reader) error {
-	os.MkdirAll(path.Join(m.cacheFolder), 0755)
-
-	out, err := os.Create(path.Join(m.cacheFolder, m.version+".tar.gz"))
-	defer out.Close()
-
-	_, err = io.Copy(out, r)
-
-	return err
-}
-
-func (m *ForgeModule) IsUpToDate() bool {
+func (m *GithubTarballModule) IsUpToDate() bool {
 	_, err := os.Stat(m.TargetFolder())
 	if err != nil {
 		return false
@@ -81,14 +68,26 @@ func (m *ForgeModule) IsUpToDate() bool {
 	return v == m.version
 }
 
-func (m *ForgeModule) getDownloadUrl() (string, error) {
-	forgeUrl := "https://forgeapi.puppetlabs.com:443/"
-	ApiVersion := "v3"
+func (m *GithubTarballModule) downloadToCache(r io.Reader) error {
+	if err := os.MkdirAll(path.Join(m.cacheFolder), 0755); err != nil {
+		return err
+	}
 
-	url := forgeUrl + ApiVersion + "/releases?" +
-		"module=" + m.Name() +
-		"&sort_by=release_date" +
-		"&limit=100"
+	out, err := os.Create(path.Join(m.cacheFolder, m.version+".tar.gz"))
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, r)
+
+	return err
+}
+
+func (m *GithubTarballModule) getDownloadUrl() (string, error) {
+	ghAPIRoot := "https://api.github.com"
+
+	url := ghAPIRoot + "/repos/" + m.repoName + "/tags"
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -105,21 +104,16 @@ func (m *ForgeModule) getDownloadUrl() (string, error) {
 		return "", &DownloadError{err, true}
 	}
 
-	var mr ModuleReleases
-	err = json.Unmarshal(body, &mr)
-
-	if err != nil {
-		return "", &DownloadError{err, true}
-	} else if len(mr.Results) == 0 {
-		return "", &DownloadError{fmt.Errorf("Could not find module %s", m.Name()), false}
+	var gr GHModuleReleases
+	if err = json.Unmarshal(body, &gr); err != nil {
+		return "", err
 	}
 
-	// If version is not specified, we pick the latest version
 	index := 0
 	if m.version != "" {
 		versionFound := false
-		for i, result := range mr.Results {
-			if m.version == result.Version {
+		for i, result := range gr {
+			if m.version == result.Name {
 				versionFound = true
 				index = i
 				break
@@ -129,35 +123,39 @@ func (m *ForgeModule) getDownloadUrl() (string, error) {
 			return "", &DownloadError{fmt.Errorf("Could not find version %s for module %s", m.version, m.Name()), false}
 		}
 	} else {
-		m.version = mr.Results[0].Version
+		m.version = gr[0].Name
 	}
 
-	return mr.Results[index].File_uri, nil
+	return gr[index].Tarball_url, nil
 }
 
-func (m *ForgeModule) Download() DownloadError {
+func (m *GithubTarballModule) Download() DownloadError {
 	var err error
 	var url string
 
-	forgeUrl := "https://forgeapi.puppetlabs.com:443/"
 	if url, err = m.getDownloadUrl(); err != nil {
 		return DownloadError{err, true}
 	}
 
 	if _, err = os.Stat(path.Join(m.cacheFolder, m.version+".tar.gz")); err != nil {
-		forgeArchive, err := http.Get(forgeUrl + url)
+		forgeArchive, err := http.Get(url)
 		if err != nil {
-			return DownloadError{fmt.Errorf("Failed retrieving %s", forgeUrl+url), true}
+			return DownloadError{fmt.Errorf("Failed retrieving %s", url), true}
 		}
 		defer forgeArchive.Body.Close()
 
 		m.downloadToCache(forgeArchive.Body)
 	}
-	r, _ := os.Open(path.Join(m.cacheFolder, m.version+".tar.gz"))
+
+	r, err := os.Open(path.Join(m.cacheFolder, m.version+".tar.gz"))
+	if err != nil {
+		return DownloadError{err, false}
+	}
+
 	defer r.Close()
 
 	if err = extract(r, m.targetFolder); err != nil {
-		return DownloadError{err, true}
+		return DownloadError{err, false}
 	}
 
 	versionFile := path.Join(m.targetFolder, ".version")
