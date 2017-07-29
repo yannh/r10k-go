@@ -37,8 +37,7 @@ type DownloadError interface {
 	Retryable() bool
 }
 
-func downloadModules(c chan PuppetModule, cache Cache, environmentRootFolder string, resultsChan chan DownloadResult) {
-	var err error
+func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 	var derr DownloadError
 	var ok bool
 
@@ -48,12 +47,12 @@ func downloadModules(c chan PuppetModule, cache Cache, environmentRootFolder str
 	for m := range c {
 		dr := DownloadResult{err: nil, willRetry: false, m: m}
 
-		m.SetCacheFolder(path.Join(cache.folder, m.Hash()))
-		m.SetTargetFolder(path.Join(environmentRootFolder, m.TargetFolder()))
-
 		derr = nil
 		if !m.IsUpToDate() {
-			cwd, _ := os.Getwd()
+			cwd, err := os.Getwd()
+			if err != nil {
+				log.Fatal("Error getting current folder: %v", err)
+			}
 			os.RemoveAll(path.Join(cwd, m.TargetFolder()))
 
 			if err = m.Download(); err != nil {
@@ -61,7 +60,7 @@ func downloadModules(c chan PuppetModule, cache Cache, environmentRootFolder str
 				for i := 0; ok && derr != nil && i < maxTries-1 && derr.Retryable(); i++ {
 					dr.err = derr
 					dr.willRetry = true
-					resultsChan <- dr
+					results <- dr
 
 					time.Sleep(retryDelay)
 					err = m.Download()
@@ -73,31 +72,22 @@ func downloadModules(c chan PuppetModule, cache Cache, environmentRootFolder str
 				dr.willRetry = false
 				dr.err = derr
 			}
-
-			resultsChan <- dr
 		}
+
+		results <- dr
 	}
 }
 
-func deduplicate(in <-chan PuppetModule, out chan<- PuppetModule, wg *sync.WaitGroup, done chan<- bool) {
+func deduplicate(in <-chan PuppetModule, out chan<- PuppetModule, cache *Cache, environmentRootFolder string, wg *sync.WaitGroup, done chan<- bool) {
 	modules := make(map[string]bool)
 
-	for {
-		select {
-		case m, ok := <-in:
-			if ok {
-				if _, ok := modules[m.Name()]; !ok {
-					modules[m.Name()] = true
-					wg.Add(1)
-					out <- m
-				}
-			} else {
-				in = nil
-			}
-		}
-
-		if in == nil {
-			break
+	for m := range in {
+		if _, ok := modules[m.Name()]; !ok {
+			modules[m.Name()] = true
+			wg.Add(1)
+			m.SetTargetFolder(path.Join(environmentRootFolder, m.TargetFolder()))
+			m.SetCacheFolder(path.Join(cache.folder, m.Hash()))
+			out <- m
 		}
 	}
 	done <- true
@@ -121,7 +111,6 @@ func parseModuleFiles(puppetFiles <-chan *PuppetFile, metadataFiles <-chan *Meta
 				metadataFiles = nil
 			}
 		}
-
 		if puppetFiles == nil && metadataFiles == nil {
 			break
 		}
@@ -162,7 +151,6 @@ func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFile
 func main() {
 	var err error
 	var numWorkers int
-	var puppetfile, environmentRootFolder string
 	var cache Cache
 
 	cliOpts := cli()
@@ -179,6 +167,8 @@ func main() {
 				log.Fatalf("Parameter --workers should be an integer")
 			}
 		}
+
+		var puppetfile, environmentRootFolder string
 
 		if cliOpts["--puppetfile"] == nil {
 			puppetfile = "Puppetfile"
@@ -197,7 +187,7 @@ func main() {
 		modulesDeduplicated := make(chan PuppetModule)
 
 		for w := 1; w <= numWorkers; w++ {
-			go downloadModules(modulesDeduplicated, cache, environmentRootFolder, results)
+			go downloadModules(modulesDeduplicated, results)
 		}
 
 		var wg sync.WaitGroup
@@ -207,7 +197,7 @@ func main() {
 
 		done := make(chan bool)
 		go parseModuleFiles(puppetFiles, metadataFiles, modules, &wg, done)
-		go deduplicate(modules, modulesDeduplicated, &wg, done)
+		go deduplicate(modules, modulesDeduplicated, &cache, environmentRootFolder, &wg, done)
 		go parseResults(results, !cliOpts["--no-deps"].(bool), metadataFiles, &wg, done)
 
 		file, err := os.Open(puppetfile)
