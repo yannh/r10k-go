@@ -7,6 +7,7 @@ import (
 	"io"
 	"path"
 	"strings"
+	"sync"
 )
 
 type PuppetFile struct {
@@ -139,7 +140,7 @@ func (p *PuppetFile) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[stri
 	return modules, opts
 }
 
-func (p *PuppetFile) parse(modulesChan chan<- PuppetModule) (int, error) {
+func (p *PuppetFile) parse(modulesChan chan<- PuppetModule, wg *sync.WaitGroup) (int, error) {
 	if p.Reader == nil {
 		return 0, fmt.Errorf("NULLHERE")
 	}
@@ -150,6 +151,7 @@ func (p *PuppetFile) parse(modulesChan chan<- PuppetModule) (int, error) {
 
 	for _, module := range modules {
 		module = p.updateTargetFolder(module, opts)
+		wg.Add(1)
 		modulesChan <- module
 	}
 

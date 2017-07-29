@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"path"
 	"strings"
+	"sync"
 )
 
 type Metadata struct {
@@ -20,7 +21,7 @@ type MetadataFile struct {
 	io.Reader
 }
 
-func (m *MetadataFile) parse(modulesChan chan<- PuppetModule) (int, error) {
+func (m *MetadataFile) parse(modulesChan chan<- PuppetModule, wg *sync.WaitGroup) (int, error) {
 	var meta Metadata
 
 	metadataFile, err := ioutil.ReadAll(m.Reader)
@@ -31,6 +32,7 @@ func (m *MetadataFile) parse(modulesChan chan<- PuppetModule) (int, error) {
 	json.Unmarshal(metadataFile, &meta)
 	for _, req := range meta.Dependencies {
 		// modulesChan <- p.compute(&ForgeModule{name: req.Name, version_requirement: req.Version_requirement})
+		wg.Add(1)
 		modulesChan <- m.compute(&ForgeModule{name: req.Name})
 	}
 
