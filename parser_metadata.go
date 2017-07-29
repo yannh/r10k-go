@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"path"
 	"strings"
-	"sync"
 )
 
 type Metadata struct {
@@ -17,26 +16,28 @@ type Metadata struct {
 	}
 }
 
-type MetadataParser struct {
+type MetadataFile struct {
+	io.Reader
 }
 
-func (p *MetadataParser) parse(r io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup) error {
+func (m *MetadataFile) parse(modulesChan chan<- PuppetModule) (int, error) {
 	var meta Metadata
 
-	defer wg.Done()
-	metadataFile, _ := ioutil.ReadAll(r)
+	metadataFile, err := ioutil.ReadAll(m.Reader)
+	if err != nil {
+		return 0, err
+	}
 
 	json.Unmarshal(metadataFile, &meta)
 	for _, req := range meta.Dependencies {
-		wg.Add(1)
 		// modulesChan <- p.compute(&ForgeModule{name: req.Name, version_requirement: req.Version_requirement})
-		modulesChan <- p.compute(&ForgeModule{name: req.Name})
+		modulesChan <- m.compute(&ForgeModule{name: req.Name})
 	}
 
-	return nil
+	return len(meta.Dependencies), nil
 }
 
-func (p *MetadataParser) compute(m PuppetModule) PuppetModule {
+func (p *MetadataFile) compute(m PuppetModule) PuppetModule {
 	splitPath := strings.Split(m.Name(), "/")
 	folderName := splitPath[len(splitPath)-1]
 	m.SetTargetFolder(path.Join("modules", folderName))
