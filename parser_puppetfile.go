@@ -22,7 +22,7 @@ func (p *PuppetFile) parseParameter(line string) string {
 }
 
 func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
-	var name, repoUrl, moduleType, installPath, targetFolder, version string
+	var name, repoUrl, repoName, moduleType, installPath, targetFolder, version string
 	var tag, ref, branch = "", "", ""
 
 	line = strings.TrimSpace(line)
@@ -45,6 +45,10 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 			version = strings.Trim(part, " \"'")
 			break
 
+		case strings.HasPrefix(part, ":github_tarball"):
+			moduleType = "github_tarball"
+			repoName = p.parseParameter(part)
+
 		case strings.HasPrefix(part, ":git"):
 			moduleType = "git"
 			repoUrl = p.parseParameter(part)
@@ -66,7 +70,8 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 		}
 	}
 
-	if moduleType == "git" {
+	switch {
+	case moduleType == "git":
 		return &GitModule{
 			name:        name,
 			repoUrl:     repoUrl,
@@ -82,7 +87,17 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 			},
 			targetFolder: targetFolder,
 			cacheFolder:  ""}, nil
-	} else {
+
+	case moduleType == "github_tarball":
+		return &GithubTarballModule{
+			name:         name,
+			repoName:     repoName,
+			version:      version,
+			targetFolder: targetFolder,
+			cacheFolder:  "",
+		}, nil
+
+	default:
 		return &ForgeModule{name: name, version: version}, nil
 	}
 }

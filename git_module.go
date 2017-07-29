@@ -24,19 +24,6 @@ type GitModule struct {
 	}
 }
 
-type GitDownloadError struct {
-	err       error
-	retryable bool
-}
-
-func (gde *GitDownloadError) Error() string {
-	return gde.err.Error()
-}
-
-func (gde *GitDownloadError) Retryable() bool {
-	return true
-}
-
 func (m *GitModule) Name() string {
 	return m.name
 }
@@ -142,7 +129,7 @@ func (m *GitModule) downloadToCache() error {
 	if _, err := os.Stat(m.cacheFolder); err != nil {
 		cmd = exec.Command("git", "clone", m.repoUrl, m.cacheFolder)
 		if err := cmd.Run(); err != nil {
-			return &GitDownloadError{err: err, retryable: true}
+			return &DownloadError{error: err, retryable: true}
 		}
 	}
 
@@ -164,7 +151,7 @@ func (m *GitModule) Download() error {
 	cmd.Dir = m.cacheFolder
 
 	if err = cmd.Run(); err != nil {
-		return &GitDownloadError{err: err, retryable: true}
+		return &DownloadError{error: err, retryable: true}
 	}
 
 	return nil
