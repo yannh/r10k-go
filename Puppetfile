@@ -14,7 +14,6 @@ mod "voxpopuli/nginx",
 mod "puppetlabs/puppetlabs-apache",
   :git => "https://github.com/puppetlabs/puppetlabs-apache.git"
 mod "puppetlabs/ntp", "6.1.0"
-mod "puppetlabs/apache"
 mod "puppetlabs/postgresql"
 mod "puppetlabs/mysql"
 mod "puppetlabs/firewall"

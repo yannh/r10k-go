@@ -3,7 +3,6 @@ package main
 // TODO: Return 1 if at least one module failed to download
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"os"
@@ -24,13 +23,13 @@ type PuppetModule interface {
 }
 
 type Parser interface {
-	parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup, environment string) error
+	parse(r io.Reader, modulesChan chan<- PuppetModule) (int, error)
 }
 
 type DownloadResult struct {
 	err       DownloadError
 	willRetry bool
-	m         *PuppetModule
+	m         PuppetModule
 }
 
 type DownloadError interface {
@@ -38,35 +37,19 @@ type DownloadError interface {
 	Retryable() bool
 }
 
-type Modules struct {
-	*sync.Mutex
-	m map[string]bool
-}
-
-func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDeps bool, wg *sync.WaitGroup, environmentRootFolder string, resultsChan chan DownloadResult) {
+func cloneWorker(c chan PuppetModule, cache Cache, environmentRootFolder string, resultsChan chan DownloadResult) {
 	var err error
 	var derr DownloadError
 	var ok bool
-
-	parser := MetadataParser{}
 
 	maxTries := 3
 	retryDelay := 5 * time.Second
 
 	for m := range c {
-		dr := DownloadResult{err: nil, willRetry: false, m: &m}
+		dr := DownloadResult{err: nil, willRetry: false, m: m}
 
 		m.SetCacheFolder(path.Join(cache.folder, m.Hash()))
 		m.SetTargetFolder(path.Join(environmentRootFolder, m.TargetFolder()))
-
-		modules.Lock()
-		if _, ok := modules.m[m.Name()]; ok {
-			wg.Done()
-			modules.Unlock()
-			continue
-		}
-		modules.m[m.Name()] = true
-		modules.Unlock()
 
 		derr = nil
 		if !m.IsUpToDate() {
@@ -75,7 +58,7 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDep
 
 			if err = m.Download(); err != nil {
 				derr, ok = err.(DownloadError)
-				for i := 0; err != nil && i < maxTries-1 && ok && derr.Retryable(); i++ {
+				for i := 0; ok && derr != nil && i < maxTries-1 && derr.Retryable(); i++ {
 					dr.err = derr
 					dr.willRetry = true
 					resultsChan <- dr
@@ -93,18 +76,6 @@ func cloneWorker(c chan PuppetModule, modules *Modules, cache Cache, downloadDep
 
 			resultsChan <- dr
 		}
-
-		if downloadDeps {
-			if file, err := os.Open(path.Join(m.TargetFolder(), "metadata.json")); err == nil {
-				wg.Add(1)
-				go func() {
-					parser.parse(file, c, wg)
-					file.Close()
-				}()
-			}
-		}
-
-		wg.Done()
 	}
 }
 
@@ -113,16 +84,6 @@ func main() {
 	var numWorkers int
 	var puppetfile, environmentRootFolder string
 	var cache Cache
-
-	if _, err = os.Stat("test-fixtures/r10k.yaml"); err == nil {
-		f, err := os.Open("test-fixtures/r10k.yaml")
-		if err != nil {
-			log.Fatal("Error opening configuration")
-		}
-
-		defer f.Close()
-		parseConfig(f)
-	}
 
 	cliOpts := cli()
 	if cache, err = NewCache(".tmp"); err != nil {
@@ -145,18 +106,7 @@ func main() {
 			puppetfile = cliOpts["--puppetfile"].(string)
 		}
 
-		file, err := os.Open(puppetfile)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer file.Close()
-
-		modulesChan := make(chan PuppetModule)
 		var wg sync.WaitGroup
-
-		modules := Modules{
-			&sync.Mutex{},
-			make(map[string]bool)}
 
 		if cliOpts["environment"] == false {
 			environmentRootFolder = "."
@@ -164,37 +114,123 @@ func main() {
 			environmentRootFolder = path.Join("environment", cliOpts["<ENV>"].(string))
 		}
 
-		resultsChan := make(chan DownloadResult)
+		results := make(chan DownloadResult)
+
+		modulesUnfiltered := make(chan PuppetModule)
+		modulesFiltered := make(chan PuppetModule)
 
 		for w := 1; w <= numWorkers; w++ {
-			go cloneWorker(modulesChan, &modules, cache, !cliOpts["--no-deps"].(bool), &wg, environmentRootFolder, resultsChan)
+			go cloneWorker(modulesFiltered, cache, environmentRootFolder, results)
 		}
 
+		puppetFiles := make(chan *PuppetFile)
+		metadataFiles := make(chan *MetadataFile)
 		resultParsingFinished := make(chan bool)
 		downloadErrors := 0
 		go func() {
-			for res := range resultsChan {
+			for res := range results {
 				if res.err != nil {
 					if res.err.Retryable() == true && res.willRetry == true {
-						fmt.Println("Failed downloading " + (*(res.m)).Name() + ": " + res.err.Error() + ". Retrying...")
+						log.Println("Failed downloading " + res.m.Name() + ": " + res.err.Error() + ". Retrying...")
 					} else {
-						fmt.Println("Failed downloading " + (*(res.m)).Name() + ". Giving up!")
+						log.Println("Failed downloading " + res.m.Name() + ". Giving up!")
 						downloadErrors += 1
+						wg.Done()
 					}
 				} else {
-					fmt.Println("Downloaded " + (*(res.m)).Name())
+					log.Println("Downloaded " + res.m.Name())
+
+					if !cliOpts["--no-deps"].(bool) {
+						if file, err := os.Open(path.Join(res.m.TargetFolder(), "metadata.json")); err == nil {
+							wg.Add(1)
+							go func() {
+								metadataFiles <- &MetadataFile{file}
+							}()
+						}
+					}
+
+					wg.Done()
 				}
 			}
 			resultParsingFinished <- true
+			log.Println("Parsing results finished")
 		}()
 
-		parser := PuppetFileParser{}
-		parser.parse(file, modulesChan, &wg)
+
+		modulesFilteringFinished := make(chan bool)
+		go func() {
+			modules := make(map[string]bool)
+
+			for {
+				select {
+				case m, ok := <-modulesUnfiltered:
+					if ok {
+						if _, ok := modules[m.Name()]; !ok {
+							modules[m.Name()] = true
+							wg.Add(1)
+							modulesFiltered <- m
+						}
+					} else {
+						modulesUnfiltered = nil
+					}
+				}
+
+				if modulesUnfiltered == nil {
+					break
+				}
+			}
+			log.Println("Finished filtering modules")
+			modulesFilteringFinished <- true
+		}()
+
+		fileParsingFinished := make(chan bool)
+		go func() {
+			for {
+				select {
+				case f, ok := <-puppetFiles:
+					if ok {
+						(&PuppetFile{f}).parse(modulesUnfiltered)
+						wg.Done()
+					} else {
+						puppetFiles = nil
+					}
+				case f, ok := <-metadataFiles:
+					if ok {
+						(&MetadataFile{f}).parse(modulesUnfiltered)
+						wg.Done()
+					} else {
+						metadataFiles = nil
+					}
+				}
+
+				if puppetFiles == nil && metadataFiles == nil {
+					break
+				}
+			}
+			log.Println("Finished parsing files")
+			fileParsingFinished <- true
+		}()
+
+		file, err := os.Open(puppetfile)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer file.Close()
+
+		wg.Add(1)
+		puppetFiles <- &PuppetFile{file}
 
 		wg.Wait()
-		close(modulesChan)
-		close(resultsChan)
+
+		close(modulesUnfiltered)
+		close(modulesFiltered)
+		close(puppetFiles)
+		close(metadataFiles)
+		close(results)
+
 		<-resultParsingFinished
+		<-fileParsingFinished
+		<-modulesFilteringFinished
 
 		os.Exit(downloadErrors)
 	}

@@ -7,13 +7,13 @@ import (
 	"io"
 	"path"
 	"strings"
-	"sync"
 )
 
-type PuppetFileParser struct {
+type PuppetFile struct {
+	io.Reader
 }
 
-func (p *PuppetFileParser) parseParameter(line string) string {
+func (p *PuppetFile) parseParameter(line string) string {
 	if strings.Contains(line, "=>") {
 		return strings.Trim(strings.Split(line, "=>")[1], " \"'")
 	} else {
@@ -21,7 +21,7 @@ func (p *PuppetFileParser) parseParameter(line string) string {
 	}
 }
 
-func (p *PuppetFileParser) parseModule(line string) (PuppetModule, error) {
+func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 	var name, repoUrl, moduleType, installPath, targetFolder, version string
 	var tag, ref, branch = "", "", ""
 
@@ -87,7 +87,7 @@ func (p *PuppetFileParser) parseModule(line string) (PuppetModule, error) {
 	}
 }
 
-func (p *PuppetFileParser) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[string]string) {
+func (p *PuppetFile) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[string]string) {
 	opts := make(map[string]string)
 	modules := make([]PuppetModule, 0, 5)
 
@@ -124,23 +124,24 @@ func (p *PuppetFileParser) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, ma
 	return modules, opts
 }
 
-func (p *PuppetFileParser) parse(puppetFile io.Reader, modulesChan chan PuppetModule, wg *sync.WaitGroup) error {
-
-	s := bufio.NewScanner(puppetFile)
+func (p *PuppetFile) parse(modulesChan chan<- PuppetModule) (int, error) {
+	if p.Reader == nil {
+		return 0, fmt.Errorf("NULLHERE")
+	}
+	s := bufio.NewScanner(p.Reader)
 	s.Split(bufio.ScanLines)
 
 	modules, opts := p.parsePuppetFile(s)
 
 	for _, module := range modules {
-		module = p.compute(module, opts)
-		wg.Add(1)
+		module = p.updateTargetFolder(module, opts)
 		modulesChan <- module
 	}
 
-	return nil
+	return len(modules), nil
 }
 
-func (p *PuppetFileParser) compute(m PuppetModule, opts map[string]string) PuppetModule {
+func (p *PuppetFile) updateTargetFolder(m PuppetModule, opts map[string]string) PuppetModule {
 	modulePath, ok := opts["modulePath"]
 	if !ok {
 		modulePath = "modules"
