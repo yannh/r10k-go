@@ -39,10 +39,6 @@ type DownloadError struct {
 	retryable bool
 }
 
-func (de *DownloadError) Retryable() bool {
-	return de.retryable
-}
-
 type DownloadResult struct {
 	err       DownloadError
 	skipped   bool
@@ -72,7 +68,7 @@ func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 		}
 
 		derr = m.Download()
-		for i := 0; derr.error != nil && i < maxTries-1 && derr.Retryable(); i++ {
+		for i := 0; derr.error != nil && i < maxTries-1 && derr.retryable; i++ {
 			results <- DownloadResult{err: derr, skipped: false, willRetry: true, m: m}
 			time.Sleep(retryDelay)
 			derr = m.Download()
@@ -122,7 +118,7 @@ func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFile
 
 	for res := range results {
 		if res.err.error != nil {
-			if res.err.Retryable() == true && res.willRetry == true {
+			if res.err.retryable == true && res.willRetry == true {
 				log.Println("Failed downloading " + res.m.Name() + ": " + res.err.Error() + ". Retrying...")
 			} else {
 				log.Println("Failed downloading " + res.m.Name() + ". Giving up!")
