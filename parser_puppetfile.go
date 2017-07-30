@@ -25,13 +25,9 @@ func NewPuppetFile(puppetfile string) *PuppetFile {
 	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile}
 }
 
-func (p *PuppetFile) Close() {
-	p.Close()
-}
-
-func (p *PuppetFile) moduleProcessedCallback() {
-	p.wg.Done()
-}
+func (m *PuppetFile) Filename() string { return m.filename }
+func (p *PuppetFile) Close() { p.File.Close() }
+func (p *PuppetFile) moduleProcessedCallback() { p.wg.Done() }
 
 func (p *PuppetFile) parseParameter(line string) string {
 	if strings.Contains(line, "=>") {
@@ -165,7 +161,7 @@ func (p *PuppetFile) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[stri
 	return modules, opts
 }
 
-func (p *PuppetFile) process(modules chan<- PuppetModule, done func()) error {
+func (p *PuppetFile) Process(modules chan<- PuppetModule, done func()) error {
 	parsedModules, opts := p.parsePuppetFile(bufio.NewScanner(p.File))
 	modulePath, ok := opts["moduledir"]
 	if !ok {
