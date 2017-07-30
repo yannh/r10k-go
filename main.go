@@ -15,6 +15,7 @@ import (
 	"time"
 )
 
+// ForgeModule, GitModule, GithubTarballModule, ....
 type PuppetModule interface {
 	Name() string
 	Download() DownloadError
@@ -29,7 +30,7 @@ type PuppetModule interface {
 // Can be a PuppetFile or a metadata.json file
 type moduleFile interface {
 	Filename() string
-  Process(modules chan<- PuppetModule, done func()) error
+	Process(modules chan<- PuppetModule, done func()) error
 	Close()
 }
 
