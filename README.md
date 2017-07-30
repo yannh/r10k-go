@@ -7,18 +7,47 @@ Deployments using r10k/librarian on large Puppetfiles (>100 modules) can end up 
 It tries to improve on https://github.com/xorpaul/g10k/ by limitting the number of downloads than can run in parallel, trying to be closer to the behaviour of r10k/librarian, and implementing a retry mechanism.
 
 ```
+r10k-go
+
 Usage:
-    r10k-go install [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
-    r10k-go deploy environment <ENV> [--puppetfile=<PUPPETFILE>] [--workers=<workers>]
+  r10k-go install [--modulePath=<PATH>] [--no-deps] [--puppetfile=<PUPPETFILE>] [--workers=<n>]
+  r10k-go -h | --help
+  r10k-go --version
+
+Options:
+  -h --help                   Show this screen.
+  --modulesPath=<PATH>        Path to the modules folder
+  --no-deps                   Skip downloading modules dependencies
+  --puppetFile=<PUPPETFILE>   Path to the modules folder
+  --version                   Displays the version.
+  --workers=<n>               Number of modules to download in parallel
 ```
 
-## Currently implemented
+## What works
 
-* Caches GIt repositories, and uses Git worktrees to make them available to different environments
-* Will download the right tag/ref/branch of GIT modules if specified
-* Will download the right version of Forge modules
+The following Puppetfile should download correctly:
+
+```
+forge "https://forgeapi.puppetlabs.com"
+
+mod 'puppetlabs-razor'
+mod 'puppetlabs-ntp', "0.0.3"
+
+mod 'puppetlabs-apt',
+  :git => "git://github.com/puppetlabs/puppetlabs-apt.git"
+
+mod 'puppetlabs-stdlib',
+  :git => "git://github.com/puppetlabs/puppetlabs-stdlib.git"
+
+mod 'puppetlabs-apache', '0.6.0',
+  :github_tarball => 'puppetlabs/puppetlabs-apache'
+```
+
+A cache is maintained in .cache, git worktrees are used to deploy git repository to limit disk usage.
 
 ## Not yet implemented
 
 * Complex version requirements for forge modules (can only give a specific version)
 * Support for r10k configuration files. Complex environment management is being actively worked on.
+* SVN or local sources
+* probably a lot more...
