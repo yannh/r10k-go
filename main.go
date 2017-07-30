@@ -64,11 +64,11 @@ func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 
 		cwd, err := os.Getwd()
 		if err != nil {
-			log.Fatal("Error getting current folder: %v", err)
+			log.Fatalf("Error getting current folder: %v", err)
 		}
 
 		if err = os.RemoveAll(path.Join(cwd, m.TargetFolder())); err != nil {
-			log.Fatal("Error removing folder: %s", path.Join(cwd, m.TargetFolder()))
+			log.Fatalf("Error removing folder: %s", path.Join(cwd, m.TargetFolder()))
 		}
 
 		derr = m.Download()
