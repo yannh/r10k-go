@@ -25,8 +25,8 @@ func NewPuppetFile(puppetfile string) *PuppetFile {
 	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile}
 }
 
-func (m *PuppetFile) Filename() string { return m.filename }
-func (p *PuppetFile) Close() { p.File.Close() }
+func (m *PuppetFile) Filename() string         { return m.filename }
+func (p *PuppetFile) Close()                   { p.File.Close() }
 func (p *PuppetFile) moduleProcessedCallback() { p.wg.Done() }
 
 func (p *PuppetFile) parseParameter(line string) string {
