@@ -11,3 +11,4 @@ mod 'puppetlabs-stdlib',
 
 mod 'puppetlabs-apache', '0.6.0',
   :github_tarball => 'puppetlabs/puppetlabs-apache'
+
