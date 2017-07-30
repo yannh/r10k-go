@@ -12,6 +12,20 @@ import (
 
 type PuppetFile struct {
 	io.Reader
+	wg *sync.WaitGroup
+}
+
+func NewPuppetFile(r io.Reader) *PuppetFile {
+	var wg sync.WaitGroup
+
+	return &PuppetFile{
+		Reader: r,
+		wg: &wg,
+	}
+}
+
+func (p *PuppetFile) moduleProcessedCallback() {
+	p.wg.Done()
 }
 
 func (p *PuppetFile) parseParameter(line string) string {
@@ -77,6 +91,7 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 			name:        name,
 			repoUrl:     repoUrl,
 			installPath: installPath,
+			processed:    p.moduleProcessedCallback,
 			want: struct {
 				ref    string
 				tag    string
@@ -95,11 +110,12 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 			repoName:     repoName,
 			version:      version,
 			targetFolder: targetFolder,
+			processed:    p.moduleProcessedCallback,
 			cacheFolder:  "",
 		}, nil
 
 	default:
-		return &ForgeModule{name: name, version: version}, nil
+		return &ForgeModule{name: name, version: version, processed: p.moduleProcessedCallback}, nil
 	}
 }
 
@@ -140,9 +156,9 @@ func (p *PuppetFile) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[stri
 	return modules, opts
 }
 
-func (p *PuppetFile) parse(modulesChan chan<- PuppetModule, wg *sync.WaitGroup) (int, error) {
+func (p *PuppetFile) process(modulesChan chan<- PuppetModule, done func()) error {
 	if p.Reader == nil {
-		return 0, fmt.Errorf("NULLHERE")
+		return fmt.Errorf("NULLHERE")
 	}
 	s := bufio.NewScanner(p.Reader)
 	s.Split(bufio.ScanLines)
@@ -151,11 +167,16 @@ func (p *PuppetFile) parse(modulesChan chan<- PuppetModule, wg *sync.WaitGroup) 
 
 	for _, module := range modules {
 		module = p.updateTargetFolder(module, opts)
-		wg.Add(1)
+		p.wg.Add(1)
 		modulesChan <- module
 	}
 
-	return len(modules), nil
+	go func() {
+		p.wg.Wait()
+		done()
+	}()
+
+	return nil
 }
 
 func (p *PuppetFile) updateTargetFolder(m PuppetModule, opts map[string]string) PuppetModule {

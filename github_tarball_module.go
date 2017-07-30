@@ -18,6 +18,7 @@ type GithubTarballModule struct {
 	version      string
 	targetFolder string
 	cacheFolder  string
+	processed    func()
 }
 
 type GHModuleReleases []struct {
@@ -27,6 +28,10 @@ type GHModuleReleases []struct {
 
 func (m *GithubTarballModule) Name() string {
 	return m.name
+}
+
+func (m *GithubTarballModule) Processed() {
+	m.processed()
 }
 
 func (m *GithubTarballModule) SetTargetFolder(targetFolder string) {

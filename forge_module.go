@@ -18,6 +18,12 @@ type ForgeModule struct {
 	// version_requirement string  ignored for now
 	targetFolder string
 	cacheFolder  string
+	processed    func()
+}
+
+
+func (m *ForgeModule) Processed() {
+	m.processed()
 }
 
 func (m *ForgeModule) SetCacheFolder(folder string) {

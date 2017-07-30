@@ -17,6 +17,7 @@ type GitModule struct {
 	installPath  string // TODO: Implement
 	targetFolder string
 	cacheFolder  string
+	processed    func()
 	want         struct {
 		ref    string
 		tag    string
@@ -26,6 +27,10 @@ type GitModule struct {
 
 func (m *GitModule) Name() string {
 	return m.name
+}
+
+func (m *GitModule) Processed() {
+	m.processed()
 }
 
 func (m *GitModule) IsUpToDate() bool {
