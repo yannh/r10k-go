@@ -152,13 +152,18 @@ func (m *ForgeModule) Download() DownloadError {
 	if _, err = os.Stat(path.Join(m.cacheFolder, m.version+".tar.gz")); err != nil {
 		forgeArchive, err := http.Get(forgeUrl + url)
 		if err != nil {
-			return DownloadError{fmt.Errorf("Failed retrieving %s", forgeUrl+url), true}
+			return DownloadError{fmt.Errorf("could not retrieve %s\n", forgeUrl+url), true}
 		}
 		defer forgeArchive.Body.Close()
 
-		m.downloadToCache(forgeArchive.Body)
+		if err := m.downloadToCache(forgeArchive.Body); err != nil {
+			return DownloadError{fmt.Errorf("could not retrieve %s\n", forgeUrl+url), true}
+		}
 	}
-	r, _ := os.Open(path.Join(m.cacheFolder, m.version+".tar.gz"))
+	r, err := os.Open(path.Join(m.cacheFolder, m.version+".tar.gz"))
+	if err != nil {
+		return DownloadError{fmt.Errorf("could not write to %s\n", path.Join(m.cacheFolder, m.version+".tar.gz")), false}
+	}
 	defer r.Close()
 
 	if err = extract(r, m.targetFolder); err != nil {
@@ -168,7 +173,7 @@ func (m *ForgeModule) Download() DownloadError {
 	versionFile := path.Join(m.targetFolder, ".version")
 	r, err = os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return DownloadError{fmt.Errorf("Failed creating file %s", versionFile), false}
+		return DownloadError{fmt.Errorf("could not create file %s\n", versionFile), false}
 	}
 	defer r.Close()
 	r.WriteString(m.version)

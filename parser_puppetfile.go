@@ -145,9 +145,6 @@ func (p *PuppetFile) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[stri
 			case strings.HasPrefix(block, "forge"):
 				opts["forge"] = optionValue(block)
 
-			case strings.HasPrefix(block, "exclusion"):
-				opts[""] = optionValue(block)
-
 			case strings.HasPrefix(block, "moduledir"):
 				opts["moduledir"] = optionValue(block)
 
