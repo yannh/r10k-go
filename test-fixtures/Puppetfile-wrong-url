@@ -2,4 +2,4 @@
 forge "http://forge.puppetlabs.com"
 
 mod "voxpopuli/nginx",
-  :git => "https://github.com/voxpupuli/puppet-nginx.gt"
+  :git => "https://github.com/idonotexist/either.git"

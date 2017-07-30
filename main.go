@@ -176,8 +176,6 @@ func main() {
 
 		if cliOpts["environment"] == false {
 			environmentRootFolder = "."
-		} else {
-			environmentRootFolder = path.Join("environment", cliOpts["<ENV>"].(string))
 		}
 
 		results := make(chan DownloadResult)
