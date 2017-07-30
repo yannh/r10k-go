@@ -25,26 +25,24 @@ type GitModule struct {
 	}
 }
 
-func (m *GitModule) Name() string {
-	return m.name
-}
-
-func (m *GitModule) Processed() {
-	m.processed()
-}
+func (m *GitModule) Name() string {	return m.name }
+func (m *GitModule) Processed() {	m.processed() }
 
 func (m *GitModule) IsUpToDate() bool {
 	if _, err := os.Stat(m.TargetFolder()); err != nil {
 		return false
 	}
 
-	// If nothing specified, anything goes
+	// folder exists, but no version specified, anything goes
 	if m.want.ref == "" && m.want.branch == "" && m.want.tag == "" {
 		return true
 	}
 
 	if m.want.ref != "" {
-		commit, _ := m.currentCommit()
+		commit, err := m.currentCommit()
+		if err != nil {
+			return false
+		}
 		return m.want.ref == commit
 	}
 
