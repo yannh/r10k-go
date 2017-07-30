@@ -30,11 +30,6 @@ type DownloadError struct {
 	retryable bool
 }
 
-type retryableError interface {
-	error
-	Retryable() bool
-}
-
 func (de *DownloadError) Retryable() bool {
 	return de.retryable
 }
