@@ -5,6 +5,9 @@ package main
 // Todo: Extract outpud handling / support quiet, debug, json, ...
 // Todo: Remove duplication between github_tarball_module & forge_module
 // TODO: fix name/target folder with dashes or slashes in name
+// TODO: Cache handling:
+//    - Add function to check if cache has required version
+//    - Add function to update cach3 (GIT?)
 
 import (
 	"log"

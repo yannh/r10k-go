@@ -55,9 +55,16 @@ type ModuleReleases struct {
 }
 
 func (m *ForgeModule) downloadToCache(r io.Reader) error {
-	os.MkdirAll(path.Join(m.cacheFolder), 0755)
+	if err := os.MkdirAll(m.cacheFolder, 0755); err != nil {
+		return fmt.Errorf("failed creating folder %s: %v", m.cacheFolder, err)
+	}
 
-	out, err := os.Create(path.Join(m.cacheFolder, m.version+".tar.gz"))
+	cacheFile := path.Join(m.cacheFolder, m.version+".tar.gz")
+	out, err := os.Create(cacheFile)
+	if err != nil {
+		return fmt.Errorf("failed creating cache file %s: %v", cacheFile, err)
+	}
+
 	defer out.Close()
 
 	_, err = io.Copy(out, r)

@@ -55,20 +55,22 @@ func extract(r io.Reader, targetFolder string) error {
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err = os.MkdirAll(path.Join(targetFolder, name), 0755); err != nil {
-				return fmt.Errorf("Error creating %s: %s", targetFolder+"/"+name, err)
+				return fmt.Errorf("Error creating %s: %v", path.Join(targetFolder, name), err)
 			}
 			continue
 
 		case tar.TypeReg:
 			var data bytes.Buffer
 			io.Copy(&data, tarReader)
-			ioutil.WriteFile(path.Join(targetFolder, name), data.Bytes(), 0644)
+			if err := ioutil.WriteFile(path.Join(targetFolder, name), data.Bytes(), 0644); err != nil {
+				return fmt.Errorf("Error creating %s: %v", path.Join(targetFolder, name), err)
+			}
 
 		case tar.TypeXGlobalHeader:
 			continue
 
 		default:
-			return fmt.Errorf("Error extracting Tar file: %s", err)
+			return fmt.Errorf("Error extracting Tar file: %v", err)
 		}
 
 		i++
