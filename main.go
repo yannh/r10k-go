@@ -6,7 +6,6 @@ package main
 // Todo: Remove duplication between github_tarball_module & forge_module
 
 import (
-	"io"
 	"log"
 	"os"
 	"path"
@@ -23,6 +22,7 @@ type PuppetModule interface {
 	SetCacheFolder(string)
 	Hash() string
 	IsUpToDate() bool
+	Processed()
 }
 
 type DownloadError struct {
@@ -37,10 +37,6 @@ type retryableError interface {
 
 func (de *DownloadError) Retryable() bool {
 	return de.retryable
-}
-
-type Parser interface {
-	parse(r io.Reader, modulesChan chan<- PuppetModule) (int, error)
 }
 
 type DownloadResult struct {
@@ -98,26 +94,24 @@ func deduplicate(in <-chan PuppetModule, out chan<- PuppetModule, cache *Cache, 
 			m.SetCacheFolder(path.Join(cache.folder, m.Hash()))
 			out <- m
 		} else {
-		  wg.Done()
+			m.Processed()
 		}
 	}
 	done <- true
 }
 
-func parseModuleFiles(puppetFiles <-chan *PuppetFile, metadataFiles <-chan *MetadataFile, modules chan PuppetModule, wg *sync.WaitGroup, done chan<- bool) {
+func processModuleFiles(puppetFiles <-chan *PuppetFile, metadataFiles <-chan *MetadataFile, modules chan PuppetModule, wg *sync.WaitGroup, done chan bool) {
 	for {
 		select {
 		case f, ok := <-puppetFiles:
 			if ok {
-				(&PuppetFile{f}).parse(modules, wg)
-				wg.Done()
+				NewPuppetFile(f).process(modules, func(){wg.Done()})
 			} else {
 				puppetFiles = nil
 			}
 		case f, ok := <-metadataFiles:
 			if ok {
-				(&MetadataFile{f}).parse(modules, wg)
-				wg.Done()
+				NewMetadataFile(f).process(modules, func(){wg.Done()})
 			} else {
 				metadataFiles = nil
 			}
@@ -139,7 +133,7 @@ func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFile
 			} else {
 				log.Println("Failed downloading " + res.m.Name() + ". Giving up!")
 				downloadErrors += 1
-				wg.Done()
+				res.m.Processed()
 			}
 			continue
 		}
@@ -152,12 +146,12 @@ func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFile
 			if file, err := os.Open(path.Join(res.m.TargetFolder(), "metadata.json")); err == nil {
 				wg.Add(1)
 				go func() {
-					metadataFiles <- &MetadataFile{file}
+					metadataFiles <- NewMetadataFile(file)
 				}()
 			}
 		}
 
-		wg.Done()
+		res.m.Processed()
 	}
 
 	errorsCount <- downloadErrors
@@ -212,7 +206,7 @@ func main() {
 		done := make(chan bool)
 		errorCount := make(chan int)
 
-		go parseModuleFiles(puppetFiles, metadataFiles, modules, &wg, done)
+		go processModuleFiles(puppetFiles, metadataFiles, modules, &wg, done)
 		go deduplicate(modules, modulesDeduplicated, &cache, environmentRootFolder, &wg, done)
 		go parseResults(results, !cliOpts["--no-deps"].(bool), metadataFiles, &wg, errorCount)
 
@@ -224,7 +218,7 @@ func main() {
 
 		wg.Add(1)
 		// TODO: file handler get leaked
-		puppetFiles <- &PuppetFile{file}
+		puppetFiles <- NewPuppetFile(file)
 
 		// +1 For every file being processed or module in the queue
 		wg.Wait()
