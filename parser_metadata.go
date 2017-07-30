@@ -19,7 +19,7 @@ type Metadata struct {
 
 type MetadataFile struct {
 	io.Reader
-  wg *sync.WaitGroup
+	wg *sync.WaitGroup
 }
 
 func NewMetadataFile(r io.Reader) *MetadataFile {
@@ -27,12 +27,12 @@ func NewMetadataFile(r io.Reader) *MetadataFile {
 
 	return &MetadataFile{
 		Reader: r,
-		wg: &wg,
+		wg:     &wg,
 	}
 }
 
 func (m *MetadataFile) moduleProcessedCallback() {
-  m.wg.Done()
+	m.wg.Done()
 }
 
 func (m *MetadataFile) process(modulesChan chan<- PuppetModule, done func()) error {

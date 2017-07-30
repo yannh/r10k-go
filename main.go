@@ -84,7 +84,7 @@ func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 	}
 }
 
-func deduplicate(in <-chan PuppetModule, out chan<- PuppetModule, cache *Cache, environmentRootFolder string, wg *sync.WaitGroup, done chan<- bool) {
+func deduplicate(in <-chan PuppetModule, out chan<- PuppetModule, cache *Cache, environmentRootFolder string, done chan<- bool) {
 	modules := make(map[string]bool)
 
 	for m := range in {
@@ -105,13 +105,13 @@ func processModuleFiles(puppetFiles <-chan *PuppetFile, metadataFiles <-chan *Me
 		select {
 		case f, ok := <-puppetFiles:
 			if ok {
-				NewPuppetFile(f).process(modules, func(){wg.Done()})
+				NewPuppetFile(f).process(modules, func() { wg.Done() })
 			} else {
 				puppetFiles = nil
 			}
 		case f, ok := <-metadataFiles:
 			if ok {
-				NewMetadataFile(f).process(modules, func(){wg.Done()})
+				NewMetadataFile(f).process(modules, func() { wg.Done() })
 			} else {
 				metadataFiles = nil
 			}
@@ -207,7 +207,7 @@ func main() {
 		errorCount := make(chan int)
 
 		go processModuleFiles(puppetFiles, metadataFiles, modules, &wg, done)
-		go deduplicate(modules, modulesDeduplicated, &cache, environmentRootFolder, &wg, done)
+		go deduplicate(modules, modulesDeduplicated, &cache, environmentRootFolder, done)
 		go parseResults(results, !cliOpts["--no-deps"].(bool), metadataFiles, &wg, errorCount)
 
 		file, err := os.Open(puppetfile)

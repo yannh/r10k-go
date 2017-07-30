@@ -20,7 +20,7 @@ func NewPuppetFile(r io.Reader) *PuppetFile {
 
 	return &PuppetFile{
 		Reader: r,
-		wg: &wg,
+		wg:     &wg,
 	}
 }
 
@@ -58,7 +58,6 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 		case index == 1 && !strings.Contains(part, "=>") && part != ":latest" && !strings.Contains(part, ":"):
 			moduleType = "forge"
 			version = strings.Trim(part, " \"'")
-			break
 
 		case strings.HasPrefix(part, ":github_tarball"):
 			moduleType = "github_tarball"
@@ -91,7 +90,7 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 			name:        name,
 			repoUrl:     repoUrl,
 			installPath: installPath,
-			processed:    p.moduleProcessedCallback,
+			processed:   p.moduleProcessedCallback,
 			want: struct {
 				ref    string
 				tag    string
@@ -133,17 +132,22 @@ func (p *PuppetFile) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[stri
 
 		block += line
 
+		optionValue := func(block string) string {
+			return strings.FieldsFunc(block, func(r rune) bool {
+				return r == '\'' || r == '"'
+			})[1]
+		}
+
 		if !strings.HasSuffix(line, ",") { // Full Block
 			switch {
 			case strings.HasPrefix(block, "forge"):
-				opts["forge"] = strings.FieldsFunc(block, func(r rune) bool {
-					return r == '\'' || r == '"'
-				})[1]
+				opts["forge"] = optionValue(block)
+
+			case strings.HasPrefix(block, "exclusion"):
+				opts[""] = optionValue(block)
 
 			case strings.HasPrefix(block, "moduledir"):
-				opts["moduledir"] = strings.FieldsFunc(block, func(r rune) bool {
-					return r == '\'' || r == '"'
-				})[1]
+				opts["moduledir"] = optionValue(block)
 
 			case strings.HasPrefix(block, "mod"):
 				module, _ := p.parseModule(block)
@@ -157,13 +161,7 @@ func (p *PuppetFile) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[stri
 }
 
 func (p *PuppetFile) process(modulesChan chan<- PuppetModule, done func()) error {
-	if p.Reader == nil {
-		return fmt.Errorf("NULLHERE")
-	}
-	s := bufio.NewScanner(p.Reader)
-	s.Split(bufio.ScanLines)
-
-	modules, opts := p.parsePuppetFile(s)
+	modules, opts := p.parsePuppetFile(bufio.NewScanner(p.Reader))
 
 	for _, module := range modules {
 		module = p.updateTargetFolder(module, opts)

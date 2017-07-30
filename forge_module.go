@@ -21,7 +21,6 @@ type ForgeModule struct {
 	processed    func()
 }
 
-
 func (m *ForgeModule) Processed() {
 	m.processed()
 }
