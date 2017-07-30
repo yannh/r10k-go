@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -59,12 +60,9 @@ func extract(r io.Reader, targetFolder string) error {
 			continue
 
 		case tar.TypeReg:
-			data := make([]byte, header.Size)
-			_, err := tarReader.Read(data)
-			if err != nil {
-				return err
-			}
-			ioutil.WriteFile(targetFolder+"/"+name, data, 0755)
+			var data bytes.Buffer
+			io.Copy(&data, tarReader)
+			ioutil.WriteFile(path.Join(targetFolder, name), data.Bytes(), 0644)
 
 		case tar.TypeXGlobalHeader:
 			continue
