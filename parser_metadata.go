@@ -35,8 +35,10 @@ func NewMetadataFile(metadataFile string) *MetadataFile {
 }
 
 func (m *MetadataFile) moduleProcessedCallback() { m.wg.Done() }
+func (m *MetadataFile) Close()                   { m.File.Close() }
+func (m *MetadataFile) Filename() string         { return m.filename }
 
-func (m *MetadataFile) process(modulesChan chan<- PuppetModule, done func()) error {
+func (m *MetadataFile) Process(modulesChan chan<- PuppetModule, done func()) error {
 	var meta Metadata
 
 	metadataFile, err := ioutil.ReadAll(m.File)

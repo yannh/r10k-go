@@ -26,6 +26,13 @@ type PuppetModule interface {
 	Processed()
 }
 
+// Can be a PuppetFile or a metadata.json file
+type moduleFile interface {
+	Filename() string
+  Process(modules chan<- PuppetModule, done func()) error
+	Close()
+}
+
 type DownloadError struct {
 	error
 	retryable bool
@@ -98,36 +105,18 @@ func deduplicate(in <-chan PuppetModule, out chan<- PuppetModule, cache *Cache, 
 	done <- true
 }
 
-func processModuleFiles(puppetFiles <-chan *PuppetFile, metadataFiles <-chan *MetadataFile, modules chan PuppetModule, wg *sync.WaitGroup, done chan bool) {
-	for {
-		select {
-		case f, ok := <-puppetFiles:
-			if !ok {
-				puppetFiles = nil
-			} else {
-				if err := f.process(modules, func() { wg.Done() }); err != nil {
-					log.Printf("failed parsing puppetfile %s: %v\n", f.filename, err)
-				}
-			}
-
-		case f, ok := <-metadataFiles:
-			if !ok {
-				metadataFiles = nil
-			} else {
-				if err := f.process(modules, func() { wg.Done() }); err != nil {
-					log.Printf("failed parsing metadatafile %s: %v\n", f.filename, err)
-				}
-			}
+func processModuleFiles(moduleFiles <-chan moduleFile, modules chan PuppetModule, wg *sync.WaitGroup, done chan bool) {
+	for mf := range moduleFiles {
+		if err := mf.Process(modules, func() { wg.Done() }); err != nil {
+			log.Printf("failed parsing puppetfile %s: %v\n", mf.Filename(), err)
 		}
-
-		if puppetFiles == nil && metadataFiles == nil {
-			break
-		}
+		mf.Close()
 	}
+
 	done <- true
 }
 
-func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFiles chan<- *MetadataFile, wg *sync.WaitGroup, errorsCount chan<- int) {
+func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFiles chan<- moduleFile, wg *sync.WaitGroup, errorsCount chan<- int) {
 	downloadErrors := 0
 
 	for res := range results {
@@ -203,27 +192,25 @@ func main() {
 		}
 
 		var wg sync.WaitGroup
-		puppetFiles := make(chan *PuppetFile)
-		metadataFiles := make(chan *MetadataFile)
+		moduleFiles := make(chan moduleFile)
 
 		done := make(chan bool)
 		errorCount := make(chan int)
 
-		go processModuleFiles(puppetFiles, metadataFiles, modules, &wg, done)
+		go processModuleFiles(moduleFiles, modules, &wg, done)
 		go deduplicate(modules, modulesDeduplicated, &cache, environmentRootFolder, done)
-		go parseResults(results, !cliOpts["--no-deps"].(bool), metadataFiles, &wg, errorCount)
+		go parseResults(results, !cliOpts["--no-deps"].(bool), moduleFiles, &wg, errorCount)
 
 		if pf := NewPuppetFile(puppetfile); pf != nil {
 			wg.Add(1)
-			puppetFiles <- pf
+			moduleFiles <- pf
 		}
 
 		// +1 For every file being processed or module in the queue
 		wg.Wait()
 		close(modules)
 		close(modulesDeduplicated)
-		close(puppetFiles)
-		close(metadataFiles)
+		close(moduleFiles)
 		close(results)
 
 		<-done
