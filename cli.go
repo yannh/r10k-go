@@ -9,8 +9,7 @@ func cli() map[string]interface{} {
 	usage := `r10k-go
 
 Usage:
-  r10k-go install [--modulePath=<PATH>] [--puppetfile=<PUPPETFILE>] [--workers=<n>] [--no-deps]
-  r10k-go deploy environment <ENV> [--puppetfile=<PUPPETFILE>] [--workers=<WORKERS>]
+  r10k-go install [--modulePath=<PATH>] [--no-deps] [--puppetfile=<PUPPETFILE>] [--workers=<n>]
   r10k-go -h | --help
   r10k-go --version
 
