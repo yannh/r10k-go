@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"path"
 	"strings"
@@ -19,7 +20,7 @@ type PuppetFile struct {
 func NewPuppetFile(puppetfile string) *PuppetFile {
 	f, err := os.Open(puppetfile)
 	if err != nil {
-		return nil
+		log.Fatalf("could not open %s: %v", puppetfile, err)
 	}
 
 	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile}
