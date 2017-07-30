@@ -4,24 +4,29 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io"
+	"os"
 	"path"
 	"strings"
 	"sync"
 )
 
 type PuppetFile struct {
-	io.Reader
-	wg *sync.WaitGroup
+	*os.File
+	wg       *sync.WaitGroup
+	filename string
 }
 
-func NewPuppetFile(r io.Reader) *PuppetFile {
-	var wg sync.WaitGroup
-
-	return &PuppetFile{
-		Reader: r,
-		wg:     &wg,
+func NewPuppetFile(puppetfile string) *PuppetFile {
+	f, err := os.Open(puppetfile)
+	if err != nil {
+		return nil
 	}
+
+	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile}
+}
+
+func (p *PuppetFile) Close() {
+	p.Close()
 }
 
 func (p *PuppetFile) moduleProcessedCallback() {
@@ -160,13 +165,20 @@ func (p *PuppetFile) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[stri
 	return modules, opts
 }
 
-func (p *PuppetFile) process(modulesChan chan<- PuppetModule, done func()) error {
-	modules, opts := p.parsePuppetFile(bufio.NewScanner(p.Reader))
+func (p *PuppetFile) process(modules chan<- PuppetModule, done func()) error {
+	parsedModules, opts := p.parsePuppetFile(bufio.NewScanner(p.File))
+	modulePath, ok := opts["moduledir"]
+	if !ok {
+		modulePath = "modules"
+	}
 
-	for _, module := range modules {
-		module = p.updateTargetFolder(module, opts)
+	for _, module := range parsedModules {
+		splitPath := strings.Split(module.Name(), "/")
+		folderName := splitPath[len(splitPath)-1]
+		module.SetTargetFolder(path.Join(modulePath, folderName))
+
 		p.wg.Add(1)
-		modulesChan <- module
+		modules <- module
 	}
 
 	go func() {
@@ -175,16 +187,4 @@ func (p *PuppetFile) process(modulesChan chan<- PuppetModule, done func()) error
 	}()
 
 	return nil
-}
-
-func (p *PuppetFile) updateTargetFolder(m PuppetModule, opts map[string]string) PuppetModule {
-	modulePath, ok := opts["modulePath"]
-	if !ok {
-		modulePath = "modules"
-	}
-
-	splitPath := strings.Split(m.Name(), "/")
-	folderName := splitPath[len(splitPath)-1]
-	m.SetTargetFolder(path.Join(modulePath, folderName))
-	return m
 }
