@@ -178,12 +178,12 @@ func (m *ForgeModule) Download() DownloadError {
 	}
 
 	versionFile := path.Join(m.targetFolder, ".version")
-	r, err = os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
+	f, err := os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return DownloadError{fmt.Errorf("could not create file %s\n", versionFile), false}
 	}
-	defer r.Close()
-	r.WriteString(m.version)
+	defer f.Close()
+	f.WriteString(m.version)
 
 	return DownloadError{nil, false}
 }
