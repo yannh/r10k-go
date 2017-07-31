@@ -33,7 +33,6 @@ func extract(r io.Reader, targetFolder string) error {
 		if err == io.EOF {
 			break
 		}
-
 		if err != nil {
 			return err
 		}
@@ -82,7 +81,7 @@ func extract(r io.Reader, targetFolder string) error {
 			continue
 
 		default:
-			return fmt.Errorf("Error extracting Tar file: %v\n", err)
+			return fmt.Errorf("failed extracting tar file: %v\n", err)
 		}
 
 		i++

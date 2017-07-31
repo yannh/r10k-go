@@ -57,9 +57,9 @@ func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 		derr := DownloadError{nil, false}
 
 		if m.IsUpToDate() {
-			go func() {
+			go func(m PuppetModule) {
 				results <- DownloadResult{err: DownloadError{nil, false}, skipped: true, willRetry: false, m: m}
-			}()
+			}(m)
 			continue
 		}
 
@@ -74,18 +74,24 @@ func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 
 		derr = m.Download()
 		for i := 0; derr.error != nil && i < maxTries-1 && derr.retryable; i++ {
-			go func() { results <- DownloadResult{err: derr, skipped: false, willRetry: true, m: m} }()
+			go func(derr DownloadError, m PuppetModule) {
+				results <- DownloadResult{err: derr, skipped: false, willRetry: true, m: m}
+			}(derr, m)
 			time.Sleep(retryDelay)
 			derr = m.Download()
 		}
 
 		if derr.error != nil {
-			go func() { results <- DownloadResult{err: derr, skipped: false, willRetry: false, m: m} }()
+			go func(derr DownloadError, m PuppetModule) {
+				results <- DownloadResult{err: derr, skipped: false, willRetry: false, m: m}
+			}(derr, m)
 			continue
 		}
 
 		// Success
-		go func() { results <- DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m} 	}()
+		go func(m PuppetModule) {
+			results <- DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m}
+		}(m)
 	}
 }
 
