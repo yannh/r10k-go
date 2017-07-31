@@ -85,9 +85,7 @@ func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 		}
 
 		// Success
-		go func() {
-			results <- DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m}
-		}()
+		go func() { results <- DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m} 	}()
 	}
 }
 
