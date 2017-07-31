@@ -120,7 +120,7 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 	}
 }
 
-func (p *PuppetFile) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[string]string) {
+func (p *PuppetFile) parse(s *bufio.Scanner) ([]PuppetModule, map[string]string) {
 	opts := make(map[string]string)
 	modules := make([]PuppetModule, 0, 5)
 
@@ -160,7 +160,7 @@ func (p *PuppetFile) parsePuppetFile(s *bufio.Scanner) ([]PuppetModule, map[stri
 }
 
 func (p *PuppetFile) Process(modules chan<- PuppetModule, done func()) error {
-	parsedModules, opts := p.parsePuppetFile(bufio.NewScanner(p.File))
+	parsedModules, opts := p.parse(bufio.NewScanner(p.File))
 	modulePath, ok := opts["moduledir"]
 	if !ok {
 		modulePath = "modules"

@@ -1,13 +1,12 @@
 package main
 
-//import "testing"
-
-/*
-import "testing"
+import (
+	"testing"
+	"bufio"
+	"strings"
+)
 
 func TestParseModuleGit(t *testing.T) {
-	parser := PuppetFileParser{}
-
 	cases := []string{
 		"mod 'puppetlabs/puppetlabs-apache', :git => 'https://github.com/puppetlabs/puppetlabs-apache.git'",
 		"mod  \"puppetlabs/puppetlabs-apache\",    :git  =>      \"https://github.com/puppetlabs/puppetlabs-apache.git\"  ",
@@ -20,43 +19,34 @@ func TestParseModuleGit(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		actual, err := parser.parseModule(c)
-
+		pf := PuppetFile{}
+    actual, err := pf.parseModule(c)
 		if err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 
 		if actual.Name() != expected.Name() ||
 			actual.(*GitModule).repoUrl != expected.repoUrl {
-			t.Fatal("Failed parsing module")
+			t.Error("Failed parsing module")
 		}
 	}
 
 }
 
-func TestParseModuleForge(t *testing.T) {
-	parser := PuppetFileParser{}
+func TestParse(t *testing.T) {
 
-	cases := []string{
-		"mod 'puppetlabs/puppetlabs-apache'",
-		"mod    \"puppetlabs/puppetlabs-apache\"  ",
+  s := bufio.NewScanner(strings.NewReader("mod 'puppetlabs-razor'\nmod 'puppetlabs-ntp', '0.0.3'"))
+	pf := PuppetFile{}
+	modules, _ := pf.parse(s)
+
+	fm := modules[0].(*ForgeModule)
+	if fm.name != "puppetlabs-razor" {
+		t.Error("Failed parsing file")
+	}
+	fm = modules[1].(*ForgeModule)
+	if fm.name != "puppetlabs-ntp" || fm.version != "0.0.3" {
+		t.Error("Failed parsing file")
 	}
 
-	expected := &ForgeModule{
-		name: "puppetlabs/puppetlabs-apache",
-	}
-
-	for _, c := range cases {
-		actual, err := parser.parseModule(c)
-
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if actual.Name() != expected.Name() {
-			t.Fatal("Failed parsing module")
-		}
-	}
 
 }
-*/
