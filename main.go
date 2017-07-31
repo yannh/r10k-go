@@ -110,7 +110,7 @@ func deduplicate(in <-chan PuppetModule, out chan<- PuppetModule, cache *Cache, 
 func processModuleFiles(moduleFiles <-chan moduleFile, modules chan PuppetModule, wg *sync.WaitGroup, done chan bool) {
 	for mf := range moduleFiles {
 		if err := mf.Process(modules, func() { wg.Done() }); err != nil {
-			log.Printf("failed parsing puppetfile %s: %v\n", mf.Filename(), err)
+			log.Printf("failed parsing file %s: %v\n", mf.Filename(), err)
 		}
 		mf.Close()
 	}
@@ -124,9 +124,9 @@ func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFile
 	for res := range results {
 		if res.err.error != nil {
 			if res.err.retryable == true && res.willRetry == true {
-				log.Println("Failed downloading " + res.m.Name() + ": " + res.err.Error() + ". Retrying...")
+				log.Printf("failed downloading %s: %v... Retrying\n", res.m.Name(), res.err)
 			} else {
-				log.Println("Failed downloading " + res.m.Name() + ". Giving up!")
+				log.Printf("failed downloading %s: %v. Giving up!\n", res.m.Name(), res.err)
 				downloadErrors += 1
 				res.m.Processed()
 			}

@@ -82,7 +82,7 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 			branch = p.parseParameter(part)
 
 		default:
-			fmt.Println("Unsupported parameter: " + part)
+			fmt.Printf("Unsupported parameter %s in %s\n", part, p.filename)
 		}
 	}
 
