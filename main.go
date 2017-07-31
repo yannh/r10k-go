@@ -57,7 +57,9 @@ func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 		derr := DownloadError{nil, false}
 
 		if m.IsUpToDate() {
-			results <- DownloadResult{err: DownloadError{nil, false}, skipped: true, willRetry: false, m: m}
+			go func() {
+				results <- DownloadResult{err: DownloadError{nil, false}, skipped: true, willRetry: false, m: m}
+			}()
 			continue
 		}
 
@@ -72,18 +74,20 @@ func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 
 		derr = m.Download()
 		for i := 0; derr.error != nil && i < maxTries-1 && derr.retryable; i++ {
-			results <- DownloadResult{err: derr, skipped: false, willRetry: true, m: m}
+			go func() { results <- DownloadResult{err: derr, skipped: false, willRetry: true, m: m} }()
 			time.Sleep(retryDelay)
 			derr = m.Download()
 		}
 
 		if derr.error != nil {
-			results <- DownloadResult{err: derr, skipped: false, willRetry: false, m: m}
+			go func() { results <- DownloadResult{err: derr, skipped: false, willRetry: false, m: m} }()
 			continue
 		}
 
 		// Success
-		results <- DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m}
+		go func() {
+			results <- DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m}
+		}()
 	}
 }
 
@@ -139,7 +143,7 @@ func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFile
 			mf := NewMetadataFile(path.Join(res.m.TargetFolder(), "metadata.json"))
 			if mf != nil {
 				wg.Add(1)
-				metadataFiles <- mf
+				go func() { metadataFiles <- mf }()
 			}
 		}
 
