@@ -25,8 +25,8 @@ type GitModule struct {
 	}
 }
 
-func (m *GitModule) Name() string {	return m.name }
-func (m *GitModule) Processed() {	m.processed() }
+func (m *GitModule) Name() string { return m.name }
+func (m *GitModule) Processed()   { m.processed() }
 
 func (m *GitModule) IsUpToDate() bool {
 	if _, err := os.Stat(m.TargetFolder()); err != nil {
