@@ -51,3 +51,26 @@ A cache is maintained in .cache, git worktrees are used to deploy git repository
 * Support for r10k configuration files. Complex environment management is being actively worked on.
 * SVN or local sources
 * probably a lot more...
+
+## How to build
+
+Given a correctly setup Go environment, you can go get r10k-go and use the makefile to build it.
+
+```
+~/$ go get github.com/yannh/r10k-go
+~/$ cd ~/go/src/github.com/yannh/r10k-go/
+~/go/src/github.com/yannh/r10k-go$ make
+rm -rf .cache modules r10k-go environment
+go get -t ./...
+go test -v ./...
+=== RUN   TestParseModuleGit
+--- PASS: TestParseModuleGit (0.00s)
+=== RUN   TestParse
+--- PASS: TestParse (0.00s)
+PASS
+ok  	github.com/yannh/r10k-go	0.007s
+go vet -v ./...
+go install ./...
+~/go/src/github.com/yannh/r10k-go$ ls ~/go/bin/r10k-go
+/home/yann/go/bin/r10k-go
+```
