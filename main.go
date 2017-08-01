@@ -1,13 +1,9 @@
 package main
 
-// TODO: Handle Signals
-// TODO: Pagination for forge and github tarballs
-// Todo: Extract outpud handling / support quiet, debug, json, ...
 // Todo: Remove duplication between github_tarball_module & forge_module
-// TODO: fix name/target folder with dashes or slashes in name
 // TODO: Cache handling:
 //    - Add function to check if cache has required version
-//    - Add function to update cach3 (GIT?)
+//    - Add function to update cache (GIT?)
 
 import (
 	"log"
@@ -99,12 +95,12 @@ func deduplicate(in <-chan PuppetModule, out chan<- PuppetModule, cache *Cache, 
 	modules := make(map[string]bool)
 
 	for m := range in {
-		if _, ok := modules[m.Name()]; ok {
+		if _, ok := modules[m.TargetFolder()]; ok {
 			m.Processed()
 			continue
 		}
 
-		modules[m.Name()] = true
+		modules[m.TargetFolder()] = true
 		m.SetTargetFolder(path.Join(environmentRootFolder, m.TargetFolder()))
 		m.SetCacheFolder(path.Join(cache.folder, m.Hash()))
 		out <- m
@@ -116,7 +112,11 @@ func deduplicate(in <-chan PuppetModule, out chan<- PuppetModule, cache *Cache, 
 func processModuleFiles(moduleFiles <-chan moduleFile, modules chan PuppetModule, wg *sync.WaitGroup, done chan bool) {
 	for mf := range moduleFiles {
 		if err := mf.Process(modules, func() { wg.Done() }); err != nil {
-			log.Printf("failed parsing file %s: %v\n", mf.Filename(), err)
+			if serr, ok := err.(ErrMalformedPuppetfile); ok {
+				log.Fatal(serr)
+			} else {
+				log.Printf("failed parsing %s: %v\n", mf.Filename(), err)
+			}
 		}
 		mf.Close()
 	}

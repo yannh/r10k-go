@@ -56,7 +56,9 @@ func (m *MetadataFile) Process(modulesChan chan<- PuppetModule, done func()) err
 		// modulesChan <- p.compute(&ForgeModule{name: req.Name, version_requirement: req.Version_requirement})
 		m.wg.Add(1)
 
-		splitPath := strings.Split(req.Name, "/")
+		splitPath := strings.FieldsFunc(req.Name, func(r rune) bool {
+			return r == '/' || r == '-'
+		})
 		folderName := splitPath[len(splitPath)-1]
 		targetFolder := path.Join("modules", folderName)
 

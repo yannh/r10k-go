@@ -126,14 +126,27 @@ func (m *GitModule) currentCommit() (string, error) {
 	return version, nil
 }
 
-func (m *GitModule) downloadToCache() error {
+func (m *GitModule) updateCache() error {
 	var cmd *exec.Cmd
 
-	if _, err := os.Stat(m.cacheFolder); err != nil {
-		cmd = exec.Command("git", "clone", m.repoUrl, m.cacheFolder)
-		if err := cmd.Run(); err != nil {
-			return &DownloadError{error: err, retryable: true}
+	if _, err := os.Stat(m.cacheFolder); err == nil {
+		if _, err := os.Stat(path.Join(m.cacheFolder, ".git")); err != nil {
+			// Cache folder exists, but is not a GIT Repo - we remove it and redownload
+			os.RemoveAll(m.cacheFolder)
+		} else {
+			// Cache exists and is a git repository, we try to update it
+			cmd = exec.Command("git", "fetch")
+			cmd.Dir = m.cacheFolder
+			if err := cmd.Run(); err != nil {
+				return &DownloadError{error: err, retryable: true}
+			}
+			return nil
 		}
+	}
+
+	cmd = exec.Command("git", "clone", m.repoUrl, m.cacheFolder)
+	if err := cmd.Run(); err != nil {
+		return &DownloadError{error: err, retryable: true}
 	}
 
 	return nil
@@ -143,10 +156,8 @@ func (m *GitModule) Download() DownloadError {
 	var cmd *exec.Cmd
 	var err error
 
-	if _, err := os.Stat(m.cacheFolder); err != nil {
-		if err = m.downloadToCache(); err != nil {
-			return DownloadError{error: err, retryable: true}
-		}
+	if err = m.updateCache(); err != nil {
+		return DownloadError{error: err, retryable: true}
 	}
 
 	gc := m.gitCommand()
