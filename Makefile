@@ -1,6 +1,6 @@
 #!/usr/bin/make -f
 
-.PHONY: all go-deps unit-tests test build integration-tests
+.PHONY: all go-deps unit-tests test install integration-tests
 
 all: clean go-deps test build integration-tests
 
@@ -16,8 +16,8 @@ unit-tests:
 	go test -v ./...
 	go vet -v ./...
 
-build:
-	go build ./...
+install:
+	go install ./...
 
 integration-tests:
 ifdef RUN_INTEGRATION_TESTS
