@@ -135,8 +135,9 @@ func (p *PuppetFile) parse(s *bufio.Scanner) ([]PuppetModule, map[string]string,
 
 		line := s.Text()
 		line = strings.Split(s.Text(), "#")[0] // Remove comments
+		line = strings.TrimSpace(line)
 
-		if len(strings.TrimSpace(line)) == 0 {
+		if len(line) == 0 {
 			continue
 		}
 
