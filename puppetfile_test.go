@@ -1,9 +1,10 @@
 package main
 
 import (
-	"testing"
 	"bufio"
+	"reflect"
 	"strings"
+	"testing"
 )
 
 func TestParseModuleGit(t *testing.T) {
@@ -20,33 +21,84 @@ func TestParseModuleGit(t *testing.T) {
 
 	for _, c := range cases {
 		pf := PuppetFile{}
-    actual, err := pf.parseModule(c)
+		actual, err := pf.parseModule(c)
 		if err != nil {
 			t.Error(err)
 		}
 
 		if actual.Name() != expected.Name() ||
 			actual.(*GitModule).repoUrl != expected.repoUrl {
-			t.Error("Failed parsing module")
+			t.Error("failed parsing module")
 		}
 	}
 
 }
 
 func TestParse(t *testing.T) {
-
-  s := bufio.NewScanner(strings.NewReader("mod 'puppetlabs-razor'\nmod 'puppetlabs-ntp', '0.0.3'"))
-	pf := PuppetFile{}
-	modules, _ := pf.parse(s)
-
-	fm := modules[0].(*ForgeModule)
-	if fm.name != "puppetlabs-razor" {
-		t.Error("Failed parsing file")
-	}
-	fm = modules[1].(*ForgeModule)
-	if fm.name != "puppetlabs-ntp" || fm.version != "0.0.3" {
-		t.Error("Failed parsing file")
+	type e struct {
+		name    string
+		version string
 	}
 
+	test_cases := []struct {
+		puppetfile string
+		expected   []map[string]string
+	}{
+		{
+			puppetfile: `
+mod 'puppetlabs-razor'
+mod 'puppetlabs-ntp', '0.0.3'
+mod 'puppetlabs-stdlib', :latest
+      `,
+			expected: []map[string]string{
+				{"name": "puppetlabs-razor", "version": ""},
+				{"name": "puppetlabs-ntp", "version": "0.0.3"},
+				{"name": "puppetlabs-stdlib", "version": ""},
+			},
+		}, {
+			puppetfile: `
+forge "https://forgeapi.puppetlabs.com"
 
+mod "ntp", "1.0.3"
+mod 'puppetlabs-stdlib',
+  :git => "git://github.com/puppetlabs/puppetlabs-stdlib.git"
+      `,
+			expected: []map[string]string{
+				{"name": "ntp", "version": "1.0.3"},
+				{"name": "puppetlabs-stdlib", "repoUrl": "git://github.com/puppetlabs/puppetlabs-stdlib.git"},
+			},
+		},
+	}
+
+	for _, c := range test_cases {
+		pf := PuppetFile{}
+		modules, _, err := pf.parse(bufio.NewScanner(strings.NewReader(c.puppetfile)))
+
+		if err != nil {
+			t.Errorf("Failed parsing module: %v.\n", err)
+		}
+
+		for i, module := range modules {
+			if reflect.TypeOf(module).Elem().Name() == "ForgeModule" {
+				m := module.(*ForgeModule)
+				if m.Name() != c.expected[i]["name"] {
+					t.Errorf("Failed parsing module, expected %s, got %s.\n", c.expected[i]["name"], module.Name())
+				}
+				if m.version != c.expected[i]["version"] {
+					t.Errorf("Failed parsing module, expected %s, got %s.\n", c.expected[i]["version"], m.version)
+				}
+			} else if reflect.TypeOf(module).Elem().Name() == "GitModule" {
+				m := module.(*GitModule)
+				if m.Name() != c.expected[i]["name"] {
+					t.Errorf("Failed parsing module, expected %s, got %s.\n", c.expected[i]["name"], module.Name())
+				}
+				if m.repoUrl != c.expected[i]["repoUrl"] {
+					t.Errorf("Failed parsing module, expected %s, got %s.\n", c.expected[i]["repoUrl"], m.repoUrl)
+				}
+			} else {
+				t.Errorf("Unknown module type: %s\n", reflect.TypeOf(module).Elem().Name())
+			}
+
+		}
+	}
 }

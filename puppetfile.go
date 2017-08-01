@@ -61,6 +61,10 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 			moduleType = "forge"
 			version = strings.Trim(part, " \"'")
 
+		case index == 1 && part == ":latest":
+			moduleType = "forge"
+			version = "" // Latest will be downloaded when no version is given
+
 		case strings.HasPrefix(part, ":github_tarball"):
 			moduleType = "github_tarball"
 			repoName = p.parseParameter(part)
@@ -120,11 +124,15 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 	}
 }
 
-func (p *PuppetFile) parse(s *bufio.Scanner) ([]PuppetModule, map[string]string) {
+func (p *PuppetFile) parse(s *bufio.Scanner) ([]PuppetModule, map[string]string, error) {
 	opts := make(map[string]string)
 	modules := make([]PuppetModule, 0, 5)
 
+	lineNumber := 0
+
 	for block := ""; s.Scan(); {
+		lineNumber++
+
 		line := s.Text()
 		line = strings.Split(s.Text(), "#")[0] // Remove comments
 
@@ -149,25 +157,43 @@ func (p *PuppetFile) parse(s *bufio.Scanner) ([]PuppetModule, map[string]string)
 				opts["moduledir"] = optionValue(block)
 
 			case strings.HasPrefix(block, "mod"):
-				module, _ := p.parseModule(block)
+				module, err := p.parseModule(block)
+				if err != nil {
+					return nil, nil, err
+				}
 				modules = append(modules, module)
+
+			default:
+				return nil, nil, fmt.Errorf("failed parsing Puppetfile, error around line: %d\n", lineNumber)
 			}
+
 			block = ""
 		}
+
 	}
 
-	return modules, opts
+	return modules, opts, nil
 }
 
+type ErrMalformedPuppetfile struct{ s string }
+
+func (e ErrMalformedPuppetfile) Error() string { return e.s }
+
 func (p *PuppetFile) Process(modules chan<- PuppetModule, done func()) error {
-	parsedModules, opts := p.parse(bufio.NewScanner(p.File))
+	parsedModules, opts, err := p.parse(bufio.NewScanner(p.File))
+	if err != nil {
+		done()
+		return ErrMalformedPuppetfile{err.Error()}
+	}
 	modulePath, ok := opts["moduledir"]
 	if !ok {
 		modulePath = "modules"
 	}
 
 	for _, module := range parsedModules {
-		splitPath := strings.Split(module.Name(), "/")
+		splitPath := strings.FieldsFunc(module.Name(), func(r rune) bool {
+			return r == '/' || r == '-'
+		})
 		folderName := splitPath[len(splitPath)-1]
 		module.SetTargetFolder(path.Join(modulePath, folderName))
 
