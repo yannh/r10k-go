@@ -56,7 +56,7 @@ func extract(r io.Reader, targetFolder string) error {
 		switch header.Typeflag {
 		case tar.TypeDir:
 			if err = os.MkdirAll(targetFilename, 0755); err != nil {
-				return fmt.Errorf("Error creating %s: %v\n", targetFilename, err)
+				return fmt.Errorf("failed creating %s: %v", targetFilename, err)
 			}
 			continue
 
@@ -64,24 +64,24 @@ func extract(r io.Reader, targetFolder string) error {
 			var data bytes.Buffer
 			io.Copy(&data, tarReader)
 			if err := ioutil.WriteFile(targetFilename, data.Bytes(), os.FileMode(header.Mode)); err != nil {
-				return fmt.Errorf("Error creating %s: %v\n", targetFilename, err)
+				return fmt.Errorf("failed creating %s: %v", targetFilename, err)
 			}
 
 		case tar.TypeSymlink:
 			if err := os.Symlink(header.Linkname, targetFilename); err != nil {
-				return fmt.Errorf("failed creating symlink %s to %s : %v\n", targetFilename, header.Linkname, err)
+				return fmt.Errorf("failed creating symlink %s to %s : %v", targetFilename, header.Linkname, err)
 			}
 
 		case tar.TypeLink:
 			if os.Link(header.Linkname, targetFilename) != nil {
-				return fmt.Errorf("failed creating hardlink %s to %s : %v\n", targetFilename, header.Linkname, err)
+				return fmt.Errorf("failed creating hardlink %s to %s : %v", targetFilename, header.Linkname, err)
 			}
 
 		case tar.TypeXGlobalHeader:
 			continue
 
 		default:
-			return fmt.Errorf("failed extracting tar file: %v\n", err)
+			return fmt.Errorf("failed extracting tar file: %v", err)
 		}
 
 		i++

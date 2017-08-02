@@ -19,7 +19,6 @@ type ForgeModule struct {
 	version     string
 	envRoot     string
 	installPath string
-	// version_requirement string  ignored for now
 	cacheFolder string
 	processed   func()
 }
@@ -61,9 +60,9 @@ func (m *ForgeModule) TargetFolder() string {
 
 	if m.installPath != "" {
 		return path.Join(m.envRoot, m.installPath, folderName)
-	} else {
-		return path.Join(m.envRoot, "modules", folderName)
 	}
+
+	return path.Join(m.envRoot, "modules", folderName)
 }
 
 type ModuleReleases struct {
@@ -112,11 +111,11 @@ func (m *ForgeModule) IsUpToDate() bool {
 	return v == m.version
 }
 
-func (m *ForgeModule) getDownloadUrl() (string, error) {
-	forgeUrl := "https://forgeapi.puppetlabs.com:443/"
-	ApiVersion := "v3"
+func (m *ForgeModule) downloadURL() (string, error) {
+	forgeURL := "https://forgeapi.puppetlabs.com:443/"
+	APIVersion := "v3"
 
-	url := forgeUrl + ApiVersion + "/releases?" +
+	url := forgeURL + APIVersion + "/releases?" +
 		"module=" + m.Name() +
 		"&sort_by=release_date" +
 		"&limit=100"
@@ -170,25 +169,25 @@ func (m *ForgeModule) Download() DownloadError {
 	var err error
 	var url string
 
-	forgeUrl := "https://forgeapi.puppetlabs.com:443/"
-	if url, err = m.getDownloadUrl(); err != nil {
+	forgeURL := "https://forgeapi.puppetlabs.com:443/"
+	if url, err = m.downloadURL(); err != nil {
 		return DownloadError{err, true}
 	}
 
 	if _, err = os.Stat(path.Join(m.cacheFolder, m.version+".tar.gz")); err != nil {
-		forgeArchive, err := http.Get(forgeUrl + url)
+		forgeArchive, err := http.Get(forgeURL + url)
 		if err != nil {
-			return DownloadError{fmt.Errorf("could not retrieve %s\n", forgeUrl+url), true}
+			return DownloadError{fmt.Errorf("could not retrieve %s", forgeURL+url), true}
 		}
 		defer forgeArchive.Body.Close()
 
 		if err := m.downloadToCache(forgeArchive.Body); err != nil {
-			return DownloadError{fmt.Errorf("could not retrieve %s\n", forgeUrl+url), true}
+			return DownloadError{fmt.Errorf("could not retrieve %s", forgeURL+url), true}
 		}
 	}
 	r, err := os.Open(path.Join(m.cacheFolder, m.version+".tar.gz"))
 	if err != nil {
-		return DownloadError{fmt.Errorf("could not write to %s\n", path.Join(m.cacheFolder, m.version+".tar.gz")), false}
+		return DownloadError{fmt.Errorf("could not write to %s", path.Join(m.cacheFolder, m.version+".tar.gz")), false}
 	}
 	defer r.Close()
 
@@ -199,7 +198,7 @@ func (m *ForgeModule) Download() DownloadError {
 	versionFile := path.Join(m.TargetFolder(), ".version")
 	f, err := os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return DownloadError{fmt.Errorf("could not create file %s\n", versionFile), false}
+		return DownloadError{fmt.Errorf("could not create file %s", versionFile), false}
 	}
 	defer f.Close()
 	f.WriteString(m.version)

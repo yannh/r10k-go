@@ -16,7 +16,7 @@ func TestParseModuleGit(t *testing.T) {
 
 	expected := &GitModule{
 		name:    "puppetlabs/puppetlabs-apache",
-		repoUrl: "https://github.com/puppetlabs/puppetlabs-apache.git",
+		repoURL: "https://github.com/puppetlabs/puppetlabs-apache.git",
 	}
 
 	for _, c := range cases {
@@ -27,7 +27,7 @@ func TestParseModuleGit(t *testing.T) {
 		}
 
 		if actual.Name() != expected.Name() ||
-			actual.(*GitModule).repoUrl != expected.repoUrl {
+			actual.(*GitModule).repoURL != expected.repoURL {
 			t.Error("failed parsing module")
 		}
 	}
@@ -40,7 +40,7 @@ func TestParse(t *testing.T) {
 		version string
 	}
 
-	test_cases := []struct {
+	testCases := []struct {
 		puppetfile string
 		expected   []map[string]string
 	}{
@@ -65,12 +65,12 @@ mod 'puppetlabs-stdlib',
       `,
 			expected: []map[string]string{
 				{"name": "ntp", "version": "1.0.3"},
-				{"name": "puppetlabs-stdlib", "repoUrl": "git://github.com/puppetlabs/puppetlabs-stdlib.git"},
+				{"name": "puppetlabs-stdlib", "repoURL": "git://github.com/puppetlabs/puppetlabs-stdlib.git"},
 			},
 		},
 	}
 
-	for _, c := range test_cases {
+	for _, c := range testCases {
 		pf := PuppetFile{}
 		modules, _, err := pf.parse(bufio.NewScanner(strings.NewReader(c.puppetfile)))
 
@@ -92,8 +92,8 @@ mod 'puppetlabs-stdlib',
 				if m.Name() != c.expected[i]["name"] {
 					t.Errorf("Failed parsing module, expected %s, got %s.\n", c.expected[i]["name"], module.Name())
 				}
-				if m.repoUrl != c.expected[i]["repoUrl"] {
-					t.Errorf("Failed parsing module, expected %s, got %s.\n", c.expected[i]["repoUrl"], m.repoUrl)
+				if m.repoURL != c.expected[i]["repoURL"] {
+					t.Errorf("Failed parsing module, expected %s, got %s.\n", c.expected[i]["repoURL"], m.repoURL)
 				}
 			} else {
 				t.Errorf("Unknown module type: %s\n", reflect.TypeOf(module).Elem().Name())

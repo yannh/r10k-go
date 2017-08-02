@@ -126,7 +126,7 @@ func parseResults(results <-chan DownloadResult, downloadDeps bool, metadataFile
 				log.Printf("failed downloading %s: %v... Retrying\n", res.m.Name(), res.err)
 			} else {
 				log.Printf("failed downloading %s: %v. Giving up!\n", res.m.Name(), res.err)
-				downloadErrors += 1
+				downloadErrors++
 				res.m.Processed()
 			}
 			continue
