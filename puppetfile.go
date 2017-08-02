@@ -32,13 +32,13 @@ func (p *PuppetFile) moduleProcessedCallback() { p.wg.Done() }
 func (p *PuppetFile) parseParameter(line string) string {
 	if strings.Contains(line, "=>") {
 		return strings.Trim(strings.Split(line, "=>")[1], " \"'")
-	} else {
-		return strings.Trim(strings.SplitN(line, ":", 3)[2], " \"'")
 	}
+
+	return strings.Trim(strings.SplitN(line, ":", 3)[2], " \"'")
 }
 
 func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
-	var name, repoUrl, repoName, moduleType, installPath, version string
+	var name, repoURL, repoName, moduleType, installPath, version string
 	var tag, ref, branch = "", "", ""
 
 	line = strings.TrimSpace(line)
@@ -70,7 +70,7 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 
 		case strings.HasPrefix(part, ":git"):
 			moduleType = "git"
-			repoUrl = p.parseParameter(part)
+			repoURL = p.parseParameter(part)
 
 		case strings.HasPrefix(part, ":install_path"):
 			installPath = p.parseParameter(part)
@@ -93,7 +93,7 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 	case moduleType == "git":
 		return &GitModule{
 			name:        name,
-			repoUrl:     repoUrl,
+			repoURL:     repoURL,
 			installPath: installPath,
 			processed:   p.moduleProcessedCallback,
 			want: struct {
@@ -166,7 +166,7 @@ func (p *PuppetFile) parse(s *bufio.Scanner) ([]PuppetModule, map[string]string,
 				modules = append(modules, module)
 
 			default:
-				return nil, nil, fmt.Errorf("failed parsing Puppetfile, error around line: %d\n", lineNumber)
+				return nil, nil, fmt.Errorf("failed parsing Puppetfile, error around line: %d", lineNumber)
 			}
 
 			block = ""

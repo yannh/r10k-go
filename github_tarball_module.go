@@ -56,9 +56,9 @@ func (m *GithubTarballModule) TargetFolder() string {
 
 	if m.installPath != "" {
 		return path.Join(m.envRoot, m.installPath, folderName)
-	} else {
-		return path.Join(m.envRoot, "modules", folderName)
 	}
+
+	return path.Join(m.envRoot, "modules", folderName)
 }
 
 func (m *GithubTarballModule) SetCacheFolder(cacheFolder string) {
@@ -108,7 +108,7 @@ func (m *GithubTarballModule) downloadToCache(r io.Reader) error {
 	return err
 }
 
-func (m *GithubTarballModule) getDownloadUrl() (string, error) {
+func (m *GithubTarballModule) downloadURL() (string, error) {
 	ghAPIRoot := "https://api.github.com"
 
 	url := ghAPIRoot + "/repos/" + m.repoName + "/tags"
@@ -157,7 +157,7 @@ func (m *GithubTarballModule) Download() DownloadError {
 	var err error
 	var url string
 
-	if url, err = m.getDownloadUrl(); err != nil {
+	if url, err = m.downloadURL(); err != nil {
 		return DownloadError{err, true}
 	}
 

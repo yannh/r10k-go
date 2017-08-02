@@ -14,7 +14,7 @@ import (
 
 type GitModule struct {
 	name        string
-	repoUrl     string
+	repoURL     string
 	envRoot     string
 	installPath string
 	cacheFolder string
@@ -85,7 +85,7 @@ func (m *GitModule) SetEnvRoot(s string) {
 
 func (m *GitModule) Hash() string {
 	hasher := sha1.New()
-	hasher.Write([]byte(m.repoUrl))
+	hasher.Write([]byte(m.repoURL))
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
@@ -104,9 +104,9 @@ func (m *GitModule) TargetFolder() string {
 
 	if m.installPath != "" {
 		return path.Join(m.envRoot, m.installPath, folderName)
-	} else {
-		return path.Join(m.envRoot, "modules", folderName)
 	}
+
+	return path.Join(m.envRoot, "modules", folderName)
 }
 
 func (m *GitModule) currentCommit() (string, error) {
@@ -130,7 +130,7 @@ func (m *GitModule) currentCommit() (string, error) {
 	}
 
 	if headFile, err = os.Open(path.Join(worktreeFolder, "HEAD")); err != nil {
-		return "", fmt.Errorf("Error getting current commit for %s", m.Name())
+		return "", fmt.Errorf("failed getting current commit for %s", m.Name())
 	}
 	defer headFile.Close()
 
@@ -153,13 +153,13 @@ func (m *GitModule) updateCache() error {
 			cmd = exec.Command("git", "fetch")
 			cmd.Dir = m.cacheFolder
 			if err := cmd.Run(); err != nil {
-				return &DownloadError{error: fmt.Errorf("Noooees\n"), retryable: true}
+				return &DownloadError{error: err, retryable: true}
 			}
 			return nil
 		}
 	}
 
-	cmd = exec.Command("git", "clone", m.repoUrl, m.cacheFolder)
+	cmd = exec.Command("git", "clone", m.repoURL, m.cacheFolder)
 	if err := cmd.Run(); err != nil {
 		return &DownloadError{error: err, retryable: true}
 	}
