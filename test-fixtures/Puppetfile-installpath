@@ -1,0 +1,3 @@
+mod "voxpopuli/nginx",
+  :git => "https://github.com/voxpupuli/puppet-nginx.git",
+  :install_path => "test_install_path"

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"path"
 	"strings"
 	"sync"
 )
@@ -26,7 +25,7 @@ func NewPuppetFile(puppetfile string) *PuppetFile {
 	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile}
 }
 
-func (m *PuppetFile) Filename() string         { return m.filename }
+func (p *PuppetFile) Filename() string         { return p.filename }
 func (p *PuppetFile) Close()                   { p.File.Close() }
 func (p *PuppetFile) moduleProcessedCallback() { p.wg.Done() }
 
@@ -39,7 +38,7 @@ func (p *PuppetFile) parseParameter(line string) string {
 }
 
 func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
-	var name, repoUrl, repoName, moduleType, installPath, targetFolder, version string
+	var name, repoUrl, repoName, moduleType, installPath, version string
 	var tag, ref, branch = "", "", ""
 
 	line = strings.TrimSpace(line)
@@ -106,21 +105,23 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 				tag,
 				branch,
 			},
-			targetFolder: targetFolder,
-			cacheFolder:  ""}, nil
+			cacheFolder: ""}, nil
 
 	case moduleType == "github_tarball":
 		return &GithubTarballModule{
-			name:         name,
-			repoName:     repoName,
-			version:      version,
-			targetFolder: targetFolder,
-			processed:    p.moduleProcessedCallback,
-			cacheFolder:  "",
+			name:        name,
+			repoName:    repoName,
+			version:     version,
+			processed:   p.moduleProcessedCallback,
+			cacheFolder: "",
 		}, nil
 
 	default:
-		return &ForgeModule{name: name, version: version, processed: p.moduleProcessedCallback}, nil
+		return &ForgeModule{
+			name:      name,
+			version:   version,
+			processed: p.moduleProcessedCallback,
+		}, nil
 	}
 }
 
@@ -181,23 +182,17 @@ type ErrMalformedPuppetfile struct{ s string }
 func (e ErrMalformedPuppetfile) Error() string { return e.s }
 
 func (p *PuppetFile) Process(modules chan<- PuppetModule, done func()) error {
-	parsedModules, opts, err := p.parse(bufio.NewScanner(p.File))
+	parsedModules, _, err := p.parse(bufio.NewScanner(p.File))
 	if err != nil {
 		done()
 		return ErrMalformedPuppetfile{err.Error()}
 	}
-	modulePath, ok := opts["moduledir"]
-	if !ok {
-		modulePath = "modules"
-	}
+	// modulePath, ok := opts["moduledir"]
+	// if !ok {
+	// 	modulePath = "modules"
+	// }
 
 	for _, module := range parsedModules {
-		splitPath := strings.FieldsFunc(module.Name(), func(r rune) bool {
-			return r == '/' || r == '-'
-		})
-		folderName := splitPath[len(splitPath)-1]
-		module.SetTargetFolder(path.Join(modulePath, folderName))
-
 		p.wg.Add(1)
 		modules <- module
 	}

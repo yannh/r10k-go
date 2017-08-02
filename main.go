@@ -1,9 +1,6 @@
 package main
 
-// Todo: Remove duplication between github_tarball_module & forge_module
-// TODO: Cache handling:
-//    - Add function to check if cache has required version
-//    - Add function to update cache (GIT?)
+// Todo: Remove duplication between modules
 
 import (
 	"log"
@@ -18,7 +15,7 @@ import (
 type PuppetModule interface {
 	Name() string
 	Download() DownloadError
-	SetTargetFolder(string)
+	SetEnvRoot(string)
 	TargetFolder() string
 	SetCacheFolder(string)
 	Hash() string
@@ -45,7 +42,7 @@ type DownloadResult struct {
 	m         PuppetModule
 }
 
-func downloadModules(c chan PuppetModule, results chan DownloadResult) {
+func downloadModules(c chan PuppetModule, results chan DownloadResult, envBaseDir string) {
 	maxTries := 3
 	retryDelay := 5 * time.Second
 
@@ -59,13 +56,8 @@ func downloadModules(c chan PuppetModule, results chan DownloadResult) {
 			continue
 		}
 
-		cwd, err := os.Getwd()
-		if err != nil {
-			log.Fatalf("Error getting current folder: %v", err)
-		}
-
-		if err = os.RemoveAll(path.Join(cwd, m.TargetFolder())); err != nil {
-			log.Fatalf("Error removing folder: %s", path.Join(cwd, m.TargetFolder()))
+		if err := os.RemoveAll(m.TargetFolder()); err != nil {
+			log.Fatalf("Error removing folder: %s", m.TargetFolder())
 		}
 
 		derr = m.Download()
@@ -95,14 +87,15 @@ func deduplicate(in <-chan PuppetModule, out chan<- PuppetModule, cache *Cache, 
 	modules := make(map[string]bool)
 
 	for m := range in {
+		m.SetEnvRoot(environmentRootFolder)
+		m.SetCacheFolder(path.Join(cache.folder, m.Hash()))
+
 		if _, ok := modules[m.TargetFolder()]; ok {
 			m.Processed()
 			continue
 		}
 
 		modules[m.TargetFolder()] = true
-		m.SetTargetFolder(path.Join(environmentRootFolder, m.TargetFolder()))
-		m.SetCacheFolder(path.Join(cache.folder, m.Hash()))
 		out <- m
 	}
 
@@ -185,7 +178,9 @@ func main() {
 			puppetfile = cliOpts["--puppetfile"].(string)
 		}
 
-		if cliOpts["environment"] == false {
+		if cliOpts["environment"] != nil {
+			environmentRootFolder = "environments" + cliOpts["environment"].(string)
+		} else {
 			environmentRootFolder = "."
 		}
 
@@ -194,7 +189,7 @@ func main() {
 		modulesDeduplicated := make(chan PuppetModule)
 
 		for w := 1; w <= numWorkers; w++ {
-			go downloadModules(modulesDeduplicated, results)
+			go downloadModules(modulesDeduplicated, results, ".")
 		}
 
 		var wg sync.WaitGroup

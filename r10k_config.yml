@@ -12,18 +12,21 @@ type source struct {
 	Remote  string
 }
 
-type config struct {
+type r10kConfig struct {
 	Cachedir string
 	Sources  map[string]source
 }
 
-func parseConfig(file io.Reader) (config, error) {
-	t := config{}
+func parseConfig(file io.Reader) (r10kConfig, error) {
+	t := r10kConfig{}
 
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(file)
 
-	yaml.Unmarshal(buf.Bytes(), &t)
+	err := yaml.Unmarshal(buf.Bytes(), &t)
+    if err != nil {
+      return nil, error
+    }
 
 	return t, nil
 }
