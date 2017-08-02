@@ -5,7 +5,7 @@
 all: clean go-deps test install integration-tests
 
 clean:
-	rm -rf .cache modules r10k-go environment
+	rm -rf .cache modules r10k-go environments test_install_path
 
 go-deps:
 	go get -t ./...

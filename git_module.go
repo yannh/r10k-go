@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -12,13 +13,13 @@ import (
 )
 
 type GitModule struct {
-	name         string
-	repoUrl      string
-	installPath  string // TODO: Implement
-	targetFolder string
-	cacheFolder  string
-	processed    func()
-	want         struct {
+	name        string
+	repoUrl     string
+	envRoot     string
+	installPath string
+	cacheFolder string
+	processed   func()
+	want        struct {
 		ref    string
 		tag    string
 		branch string
@@ -61,10 +62,8 @@ func (m *GitModule) IsUpToDate() bool {
 	return false
 }
 
-func (m *GitModule) gitCommand() []string {
-	cwd, _ := os.Getwd()
-
-	cmd := "git worktree add --detach -f " + path.Join(cwd, m.targetFolder)
+func (m *GitModule) gitCommand(to string) []string {
+	cmd := "git worktree add --detach -f " + path.Join("..", "..", to)
 	if m.want.ref != "" {
 		cmd += " " + m.want.ref
 	}
@@ -80,18 +79,34 @@ func (m *GitModule) SetCacheFolder(folder string) {
 	m.cacheFolder = folder
 }
 
+func (m *GitModule) SetEnvRoot(s string) {
+	m.envRoot = s
+}
+
 func (m *GitModule) Hash() string {
 	hasher := sha1.New()
 	hasher.Write([]byte(m.repoUrl))
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
-func (m *GitModule) SetTargetFolder(folder string) {
-	m.targetFolder = folder
-}
-
 func (m *GitModule) TargetFolder() string {
-	return m.targetFolder
+	if m.envRoot == "" {
+		log.Fatal("Environment root not defined")
+	}
+
+	splitPath := strings.FieldsFunc(m.name, func(r rune) bool {
+		return r == '/' || r == '-'
+	})
+	folderName := splitPath[len(splitPath)-1]
+	if folderName == "" {
+		log.Fatal("Oups")
+	}
+
+	if m.installPath != "" {
+		return path.Join(m.envRoot, m.installPath, folderName)
+	} else {
+		return path.Join(m.envRoot, "modules", folderName)
+	}
 }
 
 func (m *GitModule) currentCommit() (string, error) {
@@ -138,7 +153,7 @@ func (m *GitModule) updateCache() error {
 			cmd = exec.Command("git", "fetch")
 			cmd.Dir = m.cacheFolder
 			if err := cmd.Run(); err != nil {
-				return &DownloadError{error: err, retryable: true}
+				return &DownloadError{error: fmt.Errorf("Noooees\n"), retryable: true}
 			}
 			return nil
 		}
@@ -160,7 +175,7 @@ func (m *GitModule) Download() DownloadError {
 		return DownloadError{error: err, retryable: true}
 	}
 
-	gc := m.gitCommand()
+	gc := m.gitCommand(m.TargetFolder())
 	cmd = exec.Command(gc[0], gc[1:]...)
 	cmd.Dir = m.cacheFolder
 

@@ -7,18 +7,21 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path"
+	"strings"
 )
 
 type GithubTarballModule struct {
-	name         string
-	repoName     string
-	version      string
-	targetFolder string
-	cacheFolder  string
-	processed    func()
+	name        string
+	repoName    string
+	version     string
+	cacheFolder string
+	envRoot     string
+	installPath string
+	processed   func()
 }
 
 type GHModuleReleases []struct {
@@ -30,16 +33,32 @@ func (m *GithubTarballModule) Name() string {
 	return m.name
 }
 
+func (m *GithubTarballModule) SetEnvRoot(s string) {
+	m.envRoot = s
+}
+
 func (m *GithubTarballModule) Processed() {
 	m.processed()
 }
 
-func (m *GithubTarballModule) SetTargetFolder(targetFolder string) {
-	m.targetFolder = targetFolder
-}
-
 func (m *GithubTarballModule) TargetFolder() string {
-	return m.targetFolder
+	if m.envRoot == "" {
+		log.Fatal("Environment root not defined")
+	}
+
+	splitPath := strings.FieldsFunc(m.name, func(r rune) bool {
+		return r == '/' || r == '-'
+	})
+	folderName := splitPath[len(splitPath)-1]
+	if folderName == "" {
+		log.Fatal("Oups")
+	}
+
+	if m.installPath != "" {
+		return path.Join(m.envRoot, m.installPath, folderName)
+	} else {
+		return path.Join(m.envRoot, "modules", folderName)
+	}
 }
 
 func (m *GithubTarballModule) SetCacheFolder(cacheFolder string) {
@@ -159,11 +178,11 @@ func (m *GithubTarballModule) Download() DownloadError {
 
 	defer r.Close()
 
-	if err = extract(r, m.targetFolder); err != nil {
+	if err = extract(r, m.TargetFolder()); err != nil {
 		return DownloadError{err, false}
 	}
 
-	versionFile := path.Join(m.targetFolder, ".version")
+	versionFile := path.Join(m.TargetFolder(), ".version")
 	r, err = os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return DownloadError{fmt.Errorf("Failed creating file %s", versionFile), false}

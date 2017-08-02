@@ -7,22 +7,29 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"path"
+	"strings"
 )
 
 type ForgeModule struct {
-	name    string
-	version string
+	name        string
+	version     string
+	envRoot     string
+	installPath string
 	// version_requirement string  ignored for now
-	targetFolder string
-	cacheFolder  string
-	processed    func()
+	cacheFolder string
+	processed   func()
 }
 
 func (m *ForgeModule) Processed() {
 	m.processed()
+}
+
+func (m *ForgeModule) SetEnvRoot(s string) {
+	m.envRoot = s
 }
 
 func (m *ForgeModule) SetCacheFolder(folder string) {
@@ -39,12 +46,24 @@ func (m *ForgeModule) Name() string {
 	return m.name
 }
 
-func (m *ForgeModule) SetTargetFolder(folder string) {
-	m.targetFolder = folder
-}
-
 func (m *ForgeModule) TargetFolder() string {
-	return m.targetFolder
+	if m.envRoot == "" {
+		log.Fatal("Environment root not defined")
+	}
+
+	splitPath := strings.FieldsFunc(m.name, func(r rune) bool {
+		return r == '/' || r == '-'
+	})
+	folderName := splitPath[len(splitPath)-1]
+	if folderName == "" {
+		log.Fatal("Oups")
+	}
+
+	if m.installPath != "" {
+		return path.Join(m.envRoot, m.installPath, folderName)
+	} else {
+		return path.Join(m.envRoot, "modules", folderName)
+	}
 }
 
 type ModuleReleases struct {
@@ -173,11 +192,11 @@ func (m *ForgeModule) Download() DownloadError {
 	}
 	defer r.Close()
 
-	if err = extract(r, m.targetFolder); err != nil {
+	if err = extract(r, m.TargetFolder()); err != nil {
 		return DownloadError{err, true}
 	}
 
-	versionFile := path.Join(m.targetFolder, ".version")
+	versionFile := path.Join(m.TargetFolder(), ".version")
 	f, err := os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return DownloadError{fmt.Errorf("could not create file %s\n", versionFile), false}
