@@ -1,6 +1,5 @@
 # r10k-go - Fast &amp; resilient Puppet module deployments  [![Build Status](https://travis-ci.org/yannh/r10k-go.svg?branch=master)](https://travis-ci.org/yannh/r10k-go) [![Go Report card](https://goreportcard.com/badge/github.com/yannh/r10k-go)](https://goreportcard.com/report/github.com/yannh/r10k-go)
 
-https://goreportcard.com/badge/github.com/yannh/r10k-go
 WARNING: Under heavy development. Not ready for wide use.
 
 Deployments using r10k/librarian on large Puppetfiles (>100 modules) can end up taking a very long time, and sometimes fail. The goal of this project is to parallelize module download, and retry failed downloads a few times before giving up.
