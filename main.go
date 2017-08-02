@@ -207,7 +207,6 @@ func main() {
 			moduleFiles <- pf
 		}
 
-		// +1 For every file being processed or module in the queue
 		wg.Wait()
 		close(modules)
 		close(modulesDeduplicated)
