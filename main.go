@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"sync"
 	"time"
+	"fmt"
+	"os/exec"
 )
 
 // ForgeModule, GitModule, GithubTarballModule, ....
@@ -160,28 +162,44 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if cliOpts["install"] == true || cliOpts["deploy"] == true {
-		if cliOpts["--workers"] == nil {
-			numWorkers = 4
-		} else {
-			numWorkers, err = strconv.Atoi(cliOpts["--workers"].(string))
-			if err != nil {
-				log.Fatalf("Parameter --workers should be an integer")
-			}
+	if cliOpts["--workers"] == nil {
+		numWorkers = 4
+	} else {
+		numWorkers, err = strconv.Atoi(cliOpts["--workers"].(string))
+		if err != nil {
+			log.Fatalf("Parameter --workers should be an integer")
+		}
+	}
+
+	environmentRootFolder := "."
+
+	if cliOpts["deploy"] == true {
+	  environmentRootFolder = "environments" + cliOpts["<env>"].(string)
+
+		r10kFile := "r10k.yml"
+		r10kConfig, err := NewR10kConfig(r10kFile)
+		if err != nil {
+			log.Fatalf("Error parsing r10k configuration file %s: %v", r10kFile, err)
+		}
+		fmt.Printf("%v", r10kConfig)
+
+		var cmd *exec.Cmd
+		cmd = exec.Command("git", "clone", "-b", cliOpts["<env>"].(string), r10kConfig.Sources["test"].Remote, path.Join(r10kConfig.Sources["test"].Basedir, cliOpts["<env>"].(string)))
+		if err := cmd.Run(); err != nil {
+			log.Fatalf("failed downloading environment: %v", err)
 		}
 
-		var puppetfile, environmentRootFolder string
+		environmentRootFolder = path.Join(r10kConfig.Sources["test"].Basedir, cliOpts["<env>"].(string))
+	}
+
+
+	if cliOpts["install"] == true || cliOpts["deploy"] == true {
+		puppetfile := ""
 
 		if cliOpts["--puppetfile"] == nil {
-			puppetfile = "Puppetfile"
+			puppetfile = path.Join(environmentRootFolder, "Puppetfile")
 		} else {
 			puppetfile = cliOpts["--puppetfile"].(string)
-		}
-
-		if cliOpts["environment"] != nil {
-			environmentRootFolder = "environments" + cliOpts["environment"].(string)
-		} else {
-			environmentRootFolder = "."
 		}
 
 		results := make(chan DownloadResult)
