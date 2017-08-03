@@ -158,9 +158,6 @@ func main() {
 	var cache Cache
 
 	cliOpts := cli()
-	if cache, err = NewCache(".cache"); err != nil {
-		log.Fatal(err)
-	}
 
 	if cliOpts["--workers"] == nil {
 		numWorkers = 4
@@ -172,27 +169,35 @@ func main() {
 	}
 
 	environmentRootFolder := "."
+	cacheDir := ".cache"
 
 	if cliOpts["deploy"] == true {
-		environmentRootFolder = "environments" + cliOpts["<env>"].(string)
-
 		r10kFile := "r10k.yml"
 		r10kConfig, err := NewR10kConfig(r10kFile)
 		if err != nil {
 			log.Fatalf("Error parsing r10k configuration file %s: %v", r10kFile, err)
 		}
-		fmt.Printf("%v", r10kConfig)
 
-		var cmd *exec.Cmd
-		cmd = exec.Command("git", "clone", "-b", cliOpts["<env>"].(string), r10kConfig.Sources["test"].Remote, path.Join(r10kConfig.Sources["test"].Basedir, cliOpts["<env>"].(string)))
-		if err := cmd.Run(); err != nil {
-			log.Fatalf("failed downloading environment: %v", err)
+		for _, source := range r10kConfig.Sources {
+			envName := cliOpts["<env>"].(string)
+			environmentRootFolder = path.Join(source.Basedir, envName)
+			cmd := exec.Command("git", "clone", "-b", envName, source.Remote, environmentRootFolder)
+			if err := cmd.Run(); err != nil {
+				log.Fatalf("failed downloading environment: %v", err)
+			}
 		}
 
-		environmentRootFolder = path.Join(r10kConfig.Sources["test"].Basedir, cliOpts["<env>"].(string))
+		if r10kConfig.Cachedir != "" {
+			cacheDir = r10kConfig.Cachedir
+		}
+	}
+
+	if cache, err = NewCache(cacheDir); err != nil {
+		log.Fatal(err)
 	}
 
 	if cliOpts["install"] == true || cliOpts["deploy"] == true {
+		// TODO: This needs to run for all sources that have a Puppetfile
 		puppetfile := ""
 
 		if cliOpts["--puppetfile"] == nil {
