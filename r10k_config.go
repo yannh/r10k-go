@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"gopkg.in/yaml.v2"
 	"io"
-	"os"
 	"log"
+	"os"
 )
 
 type source struct {
@@ -35,9 +35,9 @@ func parseR10kConfig(r io.Reader) (*r10kConfig, error) {
 	buf.ReadFrom(r)
 
 	err := yaml.Unmarshal(buf.Bytes(), c)
-  if err != nil {
-    return nil, err
-  }
+	if err != nil {
+		return nil, err
+	}
 
 	return c, nil
 }
