@@ -3,14 +3,14 @@ package main
 // Todo: Remove duplication between modules
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"sync"
 	"time"
-	"fmt"
-	"os/exec"
 )
 
 // ForgeModule, GitModule, GithubTarballModule, ....
@@ -174,7 +174,7 @@ func main() {
 	environmentRootFolder := "."
 
 	if cliOpts["deploy"] == true {
-	  environmentRootFolder = "environments" + cliOpts["<env>"].(string)
+		environmentRootFolder = "environments" + cliOpts["<env>"].(string)
 
 		r10kFile := "r10k.yml"
 		r10kConfig, err := NewR10kConfig(r10kFile)
@@ -191,7 +191,6 @@ func main() {
 
 		environmentRootFolder = path.Join(r10kConfig.Sources["test"].Basedir, cliOpts["<env>"].(string))
 	}
-
 
 	if cliOpts["install"] == true || cliOpts["deploy"] == true {
 		puppetfile := ""
