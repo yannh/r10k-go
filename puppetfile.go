@@ -4,25 +4,27 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"log"
+	"github.com/yannh/r10k-go/git"
 	"os"
+	"path"
 	"strings"
 	"sync"
 )
 
 type PuppetFile struct {
 	*os.File
-	wg       *sync.WaitGroup
-	filename string
+	wg          *sync.WaitGroup
+	filename    string
+	modulesPath string
 }
 
-func NewPuppetFile(puppetfile string) *PuppetFile {
+func NewPuppetFile(modulesPath string, puppetfile string) *PuppetFile {
 	f, err := os.Open(puppetfile)
 	if err != nil {
-		log.Fatalf("could not open %s: %v", puppetfile, err)
+		return nil
 	}
 
-	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile}
+	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile, modulesPath: modulesPath}
 }
 
 func (p *PuppetFile) Filename() string         { return p.filename }
@@ -96,11 +98,7 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 			repoURL:     repoURL,
 			installPath: installPath,
 			processed:   p.moduleProcessedCallback,
-			want: struct {
-				ref    string
-				tag    string
-				branch string
-			}{
+			want: git.Ref{
 				ref,
 				tag,
 				branch,
@@ -182,18 +180,26 @@ type ErrMalformedPuppetfile struct{ s string }
 func (e ErrMalformedPuppetfile) Error() string { return e.s }
 
 func (p *PuppetFile) Process(modules chan<- PuppetModule, done func()) error {
-	parsedModules, _, err := p.parse(bufio.NewScanner(p.File))
+	parsedModules, opts, err := p.parse(bufio.NewScanner(p.File))
 	if err != nil {
 		done()
 		return ErrMalformedPuppetfile{err.Error()}
 	}
-	// modulePath, ok := opts["moduledir"]
-	// if !ok {
-	// 	modulePath = "modules"
-	// }
+
+	environmentRoot := path.Dir(p.filename)
+	modulePath, ok := opts["moduledir"]
+	if ok && strings.HasPrefix(modulePath, string(os.PathSeparator)) {
+		modulePath = modulePath
+	} else if ok {
+		modulePath = path.Join(environmentRoot, modulePath)
+	} else {
+		modulePath = p.modulesPath // The default passed to the constructor
+	}
 
 	for _, module := range parsedModules {
 		p.wg.Add(1)
+
+		module.SetModulesFolder(modulePath)
 		modules <- module
 	}
 

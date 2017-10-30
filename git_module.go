@@ -5,7 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
-	"log"
+	"github.com/yannh/r10k-go/git"
 	"os"
 	"os/exec"
 	"path"
@@ -13,74 +13,54 @@ import (
 )
 
 type GitModule struct {
-	name        string
-	repoURL     string
-	envRoot     string
-	installPath string
-	cacheFolder string
-	processed   func()
-	want        struct {
-		ref    string
-		tag    string
-		branch string
-	}
+	name          string
+	repoURL       string
+	modulesFolder string
+	installPath   string
+	cacheFolder   string
+	folder        string
+	processed     func()
+	want          git.Ref
 }
 
 func (m *GitModule) Name() string { return m.name }
 func (m *GitModule) Processed()   { m.processed() }
 
 func (m *GitModule) IsUpToDate() bool {
-	if _, err := os.Stat(m.TargetFolder()); err != nil {
+	if _, err := os.Stat(m.Folder()); err != nil {
 		return false
 	}
 
 	// folder exists, but no version specified, anything goes
-	if m.want.ref == "" && m.want.branch == "" && m.want.tag == "" {
+	if m.want.Ref == "" && m.want.Branch == "" && m.want.Tag == "" {
 		return true
 	}
 
-	if m.want.ref != "" {
+	if m.want.Ref != "" {
 		commit, err := m.currentCommit()
 		if err != nil {
 			return false
 		}
-		return m.want.ref == commit
+		return m.want.Ref == commit
 	}
 
 	cmd := exec.Command("git", "show", "-s", "--pretty=%d", "HEAD")
-	cmd.Dir = m.TargetFolder()
+	cmd.Dir = m.Folder()
 	output, _ := cmd.Output()
 
-	if m.want.branch != "" {
-		return strings.Contains(string(output), "origin/"+m.want.branch)
+	if m.want.Branch != "" {
+		return strings.Contains(string(output), "origin/"+m.want.Branch)
 	}
 
-	if m.want.tag != "" {
-		return strings.Contains(string(output), "tag: "+m.want.tag)
+	if m.want.Tag != "" {
+		return strings.Contains(string(output), "tag: "+m.want.Tag)
 	}
 
 	return false
 }
 
-func (m *GitModule) gitCommand(to string) []string {
-	cmd := "git worktree add --detach -f " + path.Join("..", "..", to)
-	if m.want.ref != "" {
-		cmd += " " + m.want.ref
-	}
-
-	if m.want.branch != "" {
-		cmd += " origin/" + m.want.branch
-	}
-
-	return strings.Split(cmd, " ")
-}
-
 func (m *GitModule) SetCacheFolder(folder string) {
 	m.cacheFolder = folder
-}
-
-func (m *GitModule) SetEnvRoot(s string) {
-	m.envRoot = s
 }
 
 func (m *GitModule) Hash() string {
@@ -89,24 +69,21 @@ func (m *GitModule) Hash() string {
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
-func (m *GitModule) TargetFolder() string {
-	if m.envRoot == "" {
-		log.Fatal("Environment root not defined")
-	}
+func (m *GitModule) SetModulesFolder(to string) {
+	m.modulesFolder = to
+}
 
-	splitPath := strings.FieldsFunc(m.name, func(r rune) bool {
+func (m *GitModule) ModulesFolder() string {
+	return m.modulesFolder
+}
+
+func (m *GitModule) Folder() string {
+	splitPath := strings.FieldsFunc(m.Name(), func(r rune) bool {
 		return r == '/' || r == '-'
 	})
 	folderName := splitPath[len(splitPath)-1]
-	if folderName == "" {
-		log.Fatal("Oups")
-	}
 
-	if m.installPath != "" {
-		return path.Join(m.envRoot, m.installPath, folderName)
-	}
-
-	return path.Join(m.envRoot, "modules", folderName)
+	return path.Join(m.modulesFolder, folderName)
 }
 
 func (m *GitModule) currentCommit() (string, error) {
@@ -114,7 +91,7 @@ func (m *GitModule) currentCommit() (string, error) {
 	var err error
 	worktreeFolder := ""
 
-	if gitFile, err = os.Open(path.Join(m.TargetFolder(), ".git")); err != nil {
+	if gitFile, err = os.Open(path.Join(m.Folder(), ".git")); err != nil {
 		return "", fmt.Errorf("Error getting current commit for %s", m.Name())
 	}
 
@@ -142,25 +119,20 @@ func (m *GitModule) currentCommit() (string, error) {
 }
 
 func (m *GitModule) updateCache() error {
-	var cmd *exec.Cmd
-
 	if _, err := os.Stat(m.cacheFolder); err == nil {
 		if _, err := os.Stat(path.Join(m.cacheFolder, ".git")); err != nil {
 			// Cache folder exists, but is not a GIT Repo - we remove it and redownload
 			os.RemoveAll(m.cacheFolder)
 		} else {
 			// Cache exists and is a git repository, we try to update it
-			cmd = exec.Command("git", "fetch")
-			cmd.Dir = m.cacheFolder
-			if err := cmd.Run(); err != nil {
+			if err := git.Fetch(m.cacheFolder); err != nil {
 				return &DownloadError{error: err, retryable: true}
 			}
 			return nil
 		}
 	}
 
-	cmd = exec.Command("git", "clone", m.repoURL, m.cacheFolder)
-	if err := cmd.Run(); err != nil {
+	if err := git.Clone(m.repoURL, git.Ref{}, m.cacheFolder); err != nil {
 		return &DownloadError{error: err, retryable: true}
 	}
 
@@ -168,19 +140,14 @@ func (m *GitModule) updateCache() error {
 }
 
 func (m *GitModule) Download() DownloadError {
-	var cmd *exec.Cmd
 	var err error
 
 	if err = m.updateCache(); err != nil {
-		return DownloadError{error: err, retryable: true}
+		return DownloadError{error: fmt.Errorf("failed updating cache: %v", err), retryable: true}
 	}
 
-	gc := m.gitCommand(m.TargetFolder())
-	cmd = exec.Command(gc[0], gc[1:]...)
-	cmd.Dir = m.cacheFolder
-
-	if err = cmd.Run(); err != nil {
-		return DownloadError{error: err, retryable: true}
+	if err = git.WorktreeAdd(m.cacheFolder, m.want, m.Folder()); err != nil {
+		return DownloadError{error: fmt.Errorf("failed creating subtree: %v", err), retryable: true}
 	}
 
 	return DownloadError{error: nil, retryable: false}

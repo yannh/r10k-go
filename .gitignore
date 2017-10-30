@@ -6,3 +6,4 @@ modules
 bin
 .cache
 .librarian
+environments*

@@ -5,9 +5,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/yannh/r10k-go/gzip"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path"
@@ -15,24 +15,35 @@ import (
 )
 
 type ForgeModule struct {
-	name        string
-	version     string
-	envRoot     string
-	installPath string
-	cacheFolder string
-	processed   func()
+	name          string
+	version       string
+	path          string
+	installPath   string
+	targetFolder  string
+	modulesFolder string
+	cacheFolder   string
+	processed     func()
 }
 
 func (m *ForgeModule) Processed() {
 	m.processed()
 }
 
-func (m *ForgeModule) SetEnvRoot(s string) {
-	m.envRoot = s
-}
-
 func (m *ForgeModule) SetCacheFolder(folder string) {
 	m.cacheFolder = folder
+}
+
+func (m *ForgeModule) SetModulesFolder(to string) {
+	m.modulesFolder = to
+}
+
+func (m *ForgeModule) Folder() string {
+	splitPath := strings.FieldsFunc(m.Name(), func(r rune) bool {
+		return r == '/' || r == '-'
+	})
+	folderName := splitPath[len(splitPath)-1]
+
+	return path.Join(m.modulesFolder, folderName)
 }
 
 func (m *ForgeModule) Hash() string {
@@ -43,26 +54,6 @@ func (m *ForgeModule) Hash() string {
 
 func (m *ForgeModule) Name() string {
 	return m.name
-}
-
-func (m *ForgeModule) TargetFolder() string {
-	if m.envRoot == "" {
-		log.Fatal("Environment root not defined")
-	}
-
-	splitPath := strings.FieldsFunc(m.name, func(r rune) bool {
-		return r == '/' || r == '-'
-	})
-	folderName := splitPath[len(splitPath)-1]
-	if folderName == "" {
-		log.Fatal("Oups")
-	}
-
-	if m.installPath != "" {
-		return path.Join(m.envRoot, m.installPath, folderName)
-	}
-
-	return path.Join(m.envRoot, "modules", folderName)
 }
 
 type ModuleReleases struct {
@@ -91,7 +82,7 @@ func (m *ForgeModule) downloadToCache(r io.Reader) error {
 }
 
 func (m *ForgeModule) IsUpToDate() bool {
-	_, err := os.Stat(m.TargetFolder())
+	_, err := os.Stat(m.Folder())
 	if err != nil {
 		return false
 	} else if m.version == "" {
@@ -99,7 +90,7 @@ func (m *ForgeModule) IsUpToDate() bool {
 		return true
 	}
 
-	versionFile := path.Join(m.TargetFolder(), ".version")
+	versionFile := path.Join(m.Folder(), ".version")
 	version, err := ioutil.ReadFile(versionFile)
 	if err != nil {
 		// TODO error handling
@@ -109,6 +100,10 @@ func (m *ForgeModule) IsUpToDate() bool {
 	v := string(version)
 
 	return v == m.version
+}
+
+func (m *ForgeModule) ModulesFolder() string {
+	return m.modulesFolder
 }
 
 func (m *ForgeModule) downloadURL() (string, error) {
@@ -191,11 +186,11 @@ func (m *ForgeModule) Download() DownloadError {
 	}
 	defer r.Close()
 
-	if err = extract(r, m.TargetFolder()); err != nil {
+	if err = gzip.Extract(r, m.Folder()); err != nil {
 		return DownloadError{err, true}
 	}
 
-	versionFile := path.Join(m.TargetFolder(), ".version")
+	versionFile := path.Join(m.Folder(), ".version")
 	f, err := os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return DownloadError{fmt.Errorf("could not create file %s", versionFile), false}
