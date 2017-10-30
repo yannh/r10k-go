@@ -1,13 +1,13 @@
 package main
 
-import "crypto/sha1"
 import (
+	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/yannh/r10k-go/gzip"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"os"
 	"path"
@@ -15,13 +15,15 @@ import (
 )
 
 type GithubTarballModule struct {
-	name        string
-	repoName    string
-	version     string
-	cacheFolder string
-	envRoot     string
-	installPath string
-	processed   func()
+	name          string
+	repoName      string
+	version       string
+	cacheFolder   string
+	installPath   string
+	folder        string
+	modulesFolder string
+	modulePath    string
+	processed     func()
 }
 
 type GHModuleReleases []struct {
@@ -33,32 +35,25 @@ func (m *GithubTarballModule) Name() string {
 	return m.name
 }
 
-func (m *GithubTarballModule) SetEnvRoot(s string) {
-	m.envRoot = s
+func (m *GithubTarballModule) SetModulesFolder(to string) {
+	m.modulesFolder = to
+}
+
+func (m *GithubTarballModule) Folder() string {
+	splitPath := strings.FieldsFunc(m.Name(), func(r rune) bool {
+		return r == '/' || r == '-'
+	})
+	folderName := splitPath[len(splitPath)-1]
+
+	return path.Join(m.modulesFolder, folderName)
 }
 
 func (m *GithubTarballModule) Processed() {
 	m.processed()
 }
 
-func (m *GithubTarballModule) TargetFolder() string {
-	if m.envRoot == "" {
-		log.Fatal("Environment root not defined")
-	}
-
-	splitPath := strings.FieldsFunc(m.name, func(r rune) bool {
-		return r == '/' || r == '-'
-	})
-	folderName := splitPath[len(splitPath)-1]
-	if folderName == "" {
-		log.Fatal("Oups")
-	}
-
-	if m.installPath != "" {
-		return path.Join(m.envRoot, m.installPath, folderName)
-	}
-
-	return path.Join(m.envRoot, "modules", folderName)
+func (m *GithubTarballModule) ModulesFolder() string {
+	return m.modulesFolder
 }
 
 func (m *GithubTarballModule) SetCacheFolder(cacheFolder string) {
@@ -72,7 +67,7 @@ func (m *GithubTarballModule) Hash() string {
 }
 
 func (m *GithubTarballModule) IsUpToDate() bool {
-	_, err := os.Stat(m.TargetFolder())
+	_, err := os.Stat(m.Folder())
 	if err != nil {
 		return false
 	} else if m.version == "" {
@@ -80,7 +75,7 @@ func (m *GithubTarballModule) IsUpToDate() bool {
 		return true
 	}
 
-	versionFile := path.Join(m.TargetFolder(), ".version")
+	versionFile := path.Join(m.Folder(), ".version")
 	version, err := ioutil.ReadFile(versionFile)
 	if err != nil {
 		// TODO error handling
@@ -178,11 +173,11 @@ func (m *GithubTarballModule) Download() DownloadError {
 
 	defer r.Close()
 
-	if err = extract(r, m.TargetFolder()); err != nil {
+	if err = gzip.Extract(r, m.Folder()); err != nil {
 		return DownloadError{err, false}
 	}
 
-	versionFile := path.Join(m.TargetFolder(), ".version")
+	versionFile := path.Join(m.Folder(), ".version")
 	r, err = os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return DownloadError{fmt.Errorf("Failed creating file %s", versionFile), false}

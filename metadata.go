@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path"
 	"sync"
 )
 
@@ -18,18 +19,19 @@ type Metadata struct {
 
 type MetadataFile struct {
 	*os.File
-	wg       *sync.WaitGroup
-	filename string
+	wg          *sync.WaitGroup
+	filename    string
+	ModulesPath string
 }
 
-func NewMetadataFile(metadataFile string) *MetadataFile {
+func NewMetadataFile(modulesPath string, metadataFile string) *MetadataFile {
 	// We just ignore if the file doesn't exist'
 	f, err := os.Open(metadataFile)
 	if err != nil {
 		return nil
 	}
 
-	return &MetadataFile{File: f, filename: metadataFile, wg: &sync.WaitGroup{}}
+	return &MetadataFile{File: f, filename: metadataFile, wg: &sync.WaitGroup{}, ModulesPath: modulesPath}
 }
 
 func (m *MetadataFile) moduleProcessedCallback() { m.wg.Done() }
@@ -52,11 +54,12 @@ func (m *MetadataFile) Process(modulesChan chan<- PuppetModule, done func()) err
 
 	for _, req := range meta.Dependencies {
 		// modulesChan <- p.compute(&ForgeModule{name: req.Name, version_requirement: req.Version_requirement})
-		m.wg.Add(1)
 
+		m.wg.Add(1)
 		modulesChan <- &ForgeModule{
-			name:      req.Name,
-			processed: m.moduleProcessedCallback,
+			name:          req.Name,
+			processed:     m.moduleProcessedCallback,
+			modulesFolder: path.Join(m.ModulesPath),
 		}
 	}
 

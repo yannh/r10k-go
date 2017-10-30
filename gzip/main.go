@@ -1,4 +1,4 @@
-package main
+package gzip
 
 import (
 	"archive/tar"
@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-func extract(r io.Reader, targetFolder string) error {
+func Extract(r io.Reader, targetFolder string) error {
 	gzf, err := gzip.NewReader(r)
 	if err != nil {
 		return err
@@ -40,7 +40,7 @@ func extract(r io.Reader, targetFolder string) error {
 		name := header.Name
 
 		// The files in the archive are all in a parent folder,
-		// we want to extract all files directly to TargetFolder
+		// we want to extract all files directly to Folder
 		namePath := strings.Split(name, "/")
 		switch len(namePath) {
 		case 0:
