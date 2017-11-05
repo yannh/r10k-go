@@ -30,14 +30,19 @@ func (cache *Cache) Has(module PuppetModule) bool {
 
 func (cache *Cache) LockModule(o string) {
 	cache.Lock()
-	defer cache.Unlock()
-
 	if _, ok := cache.Locks[o]; !ok {
 		cache.Locks[o] = new(sync.Mutex)
 	}
-	(*cache).Locks[o].Lock()
+	l := (*cache).Locks[o]
+	// We need to unlock cache before waiting for the
+	// module lock, otherwise UnlockModule can not unlock it
+	cache.Unlock()
+
+	l.Lock()
 }
 
 func (cache *Cache) UnlockModule(o string) {
+	cache.Lock()
 	(*cache).Locks[o].Unlock()
+	cache.Unlock()
 }

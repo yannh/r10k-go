@@ -50,53 +50,47 @@ type DownloadResult struct {
 	m         PuppetModule
 }
 
-func downloadModule(m PuppetModule, results chan DownloadResult, cache *Cache) {
-	maxTries := 3
-	retryDelay := 5 * time.Second
-
-	m.SetCacheFolder(path.Join(cache.Folder, m.Hash()))
+func downloadModule(m PuppetModule, cache *Cache) DownloadResult {
 	derr := DownloadError{nil, false}
 
-	cache.LockModule(m.Hash())
-	defer cache.UnlockModule(m.Hash())
-
 	if m.IsUpToDate() {
-		go func(m PuppetModule) {
-			results <- DownloadResult{err: DownloadError{nil, false}, skipped: true, willRetry: false, m: m}
-		}(m)
-		return
+		return DownloadResult{err: DownloadError{nil, false}, skipped: true, willRetry: false, m: m}
 	}
 
 	if err := os.RemoveAll(m.Folder()); err != nil {
 		log.Fatalf("Error removing folder: %s", m.Folder())
 	}
 
-	derr = m.Download()
-	for i := 0; derr.error != nil && i < maxTries-1 && derr.retryable; i++ {
-		go func(derr DownloadError, m PuppetModule) {
-			results <- DownloadResult{err: derr, skipped: false, willRetry: true, m: m}
-		}(derr, m)
-		time.Sleep(retryDelay)
-		derr = m.Download()
+	if derr = m.Download(); derr.error != nil {
+		return DownloadResult{err: derr, skipped: false, willRetry: true, m: m}
 	}
 
-	if derr.error != nil {
-		go func(derr DownloadError, m PuppetModule) {
-			results <- DownloadResult{err: derr, skipped: false, willRetry: false, m: m}
-		}(derr, m)
-		return
-	}
-
-	// Success
-	go func(m PuppetModule) {
-		results <- DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m}
-	}(m)
+	return DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m}
 }
 
 // Simplify
 func downloadModules(c chan PuppetModule, results chan DownloadResult, cache *Cache) {
+	maxTries := 3
+	retryDelay := 5 * time.Second
+
 	for m := range c {
-		downloadModule(m, results, cache)
+		m.SetCacheFolder(path.Join(cache.Folder, m.Hash()))
+		cache.LockModule(m.Hash())
+
+		dres := downloadModule(m, cache)
+		for i := 0; dres.err.error != nil && i < maxTries-1 && dres.err.retryable; i++ {
+			go func(dres DownloadResult) {
+				results <- dres
+			}(dres)
+			time.Sleep(retryDelay)
+			dres = downloadModule(m, cache)
+		}
+
+		go func(dres DownloadResult) {
+			results <- dres
+		}(dres)
+
+		cache.UnlockModule(m.Hash())
 	}
 }
 
@@ -125,8 +119,8 @@ func ParseDownloadResults(results <-chan DownloadResult, downloadDeps bool, meta
 			} else {
 				log.Printf("failed downloading %s: %v. Giving up!\n", res.m.Name(), res.err)
 				downloadErrors++
-				res.m.Processed()
 			}
+			res.m.Processed()
 			continue
 		}
 
@@ -165,7 +159,6 @@ func main() {
 		}
 	}
 
-	environmentRootFolder := "."
 	cacheDir := ".cache"
 	var puppetFiles []*PuppetFile
 
@@ -208,23 +201,43 @@ func main() {
 
 			git.WorktreeAdd(path.Join(cacheDir, environmentSource), git.Ref{Branch: envName}, path.Join(r10kConfig.Sources[environmentSource].Basedir, envName))
 			puppetfile := path.Join(r10kConfig.Sources[environmentSource].Basedir, envName, "Puppetfile")
-			if pf := NewPuppetFile(path.Join(path.Dir(puppetfile), "modules"), puppetfile); pf != nil {
-				puppetFiles = append(puppetFiles, pf)
+
+			pf := NewPuppetFile(path.Join(path.Dir(puppetfile), "modules"), puppetfile)
+			if pf == nil {
+				log.Fatalf("no such file or directory %s", puppetfile)
 			}
+			puppetFiles = append(puppetFiles, pf)
+		}
+	}
+
+	if cliOpts["install"] == true {
+		if cliOpts["--puppetfile"] == nil {
+			wd, _ := os.Getwd()
+			puppetfile := path.Join(wd, "Puppetfile")
+			pf := NewPuppetFile(path.Join(path.Dir(puppetfile), "modules"), puppetfile)
+			if pf == nil {
+				log.Fatalf("no such file or directory %s", puppetfile)
+			}
+			puppetFiles = append(puppetFiles, pf)
+		} else {
+			puppetfile := cliOpts["--puppetfile"].(string)
+			pf := NewPuppetFile(path.Join(path.Dir(puppetfile), "modules"), puppetfile)
+			if pf == nil {
+				log.Fatalf("no such file or directory %s", puppetfile)
+			}
+			puppetFiles = append(puppetFiles, pf)
 		}
 	}
 
 	if cliOpts["install"] == true || cliOpts["deploy"] == true {
-		if cliOpts["--puppetfile"] == nil && len(puppetFiles) == 0 {
-			puppetfile := path.Join(environmentRootFolder, "Puppetfile")
-			if pf := NewPuppetFile(path.Join(path.Dir(puppetfile), "modules"), puppetfile); pf != nil {
-				puppetFiles = append(puppetFiles, pf)
+		if len(puppetFiles) == 0 {
+			wd, _ := os.Getwd()
+			puppetfile := path.Join(wd, "Puppetfile")
+			pf := NewPuppetFile(path.Join(wd, "modules"), path.Join(wd, "Puppetfile"))
+			if pf == nil {
+				log.Fatalf("no such file or directory %s", puppetfile)
 			}
-		} else if cliOpts["--puppetfile"] != nil {
-			puppetfile := cliOpts["--puppetfile"].(string)
-			if pf := NewPuppetFile(path.Join(path.Dir(puppetfile), "modules"), puppetfile); pf != nil {
-				puppetFiles = append(puppetFiles, pf)
-			}
+			puppetFiles = append(puppetFiles, pf)
 		}
 
 		results := make(chan DownloadResult)
@@ -245,15 +258,14 @@ func main() {
 
 		for _, pf := range puppetFiles {
 			wg.Add(1)
-			moduleFiles <- pf
+			go func(file *PuppetFile) { moduleFiles <- file }(pf)
 		}
 
 		wg.Wait()
 		close(modules)
 		close(moduleFiles)
-		close(results)
-
 		<-done
+		close(results)
 		nErr := <-errorCount
 		close(errorCount)
 

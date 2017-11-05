@@ -196,9 +196,8 @@ func (p *PuppetFile) Process(modules chan<- PuppetModule, done func()) error {
 	}
 
 	for _, module := range parsedModules {
-		p.wg.Add(1)
-
 		module.SetModulesFolder(modulePath)
+		p.wg.Add(1)
 		modules <- module
 	}
 

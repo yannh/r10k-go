@@ -2,7 +2,7 @@
 
 setup() {
   # We clean modules and cache between each test
-  rm -rf modules modules-test .cache
+  rm -rf modules modules-test .cache test-fixtures/modules
 }
 
 @test "invocation with a nonexistent puppetfile prints an error" {

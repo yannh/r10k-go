@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"sync"
 )
 
@@ -53,13 +52,11 @@ func (m *MetadataFile) Process(modulesChan chan<- PuppetModule, done func()) err
 	}
 
 	for _, req := range meta.Dependencies {
-		// modulesChan <- p.compute(&ForgeModule{name: req.Name, version_requirement: req.Version_requirement})
-
 		m.wg.Add(1)
 		modulesChan <- &ForgeModule{
 			name:          req.Name,
 			processed:     m.moduleProcessedCallback,
-			modulesFolder: path.Join(m.ModulesPath),
+			modulesFolder: m.ModulesPath,
 		}
 	}
 

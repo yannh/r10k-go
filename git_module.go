@@ -74,6 +74,10 @@ func (m *GitModule) SetModulesFolder(to string) {
 }
 
 func (m *GitModule) ModulesFolder() string {
+	if m.installPath != "" {
+		return m.installPath
+	}
+
 	return m.modulesFolder
 }
 
@@ -83,7 +87,7 @@ func (m *GitModule) Folder() string {
 	})
 	folderName := splitPath[len(splitPath)-1]
 
-	return path.Join(m.modulesFolder, folderName)
+	return path.Join(m.ModulesFolder(), folderName)
 }
 
 func (m *GitModule) currentCommit() (string, error) {
