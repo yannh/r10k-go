@@ -99,9 +99,9 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 			installPath: installPath,
 			processed:   p.moduleProcessedCallback,
 			want: git.Ref{
-				ref,
-				tag,
-				branch,
+				Ref:    ref,
+				Tag:    tag,
+				Branch: branch,
 			},
 			cacheFolder: ""}, nil
 
@@ -188,12 +188,11 @@ func (p *PuppetFile) Process(modules chan<- PuppetModule, done func()) error {
 
 	environmentRoot := path.Dir(p.filename)
 	modulePath, ok := opts["moduledir"]
-	if ok && strings.HasPrefix(modulePath, string(os.PathSeparator)) {
-		modulePath = modulePath
-	} else if ok {
-		modulePath = path.Join(environmentRoot, modulePath)
-	} else {
+
+	if !ok {
 		modulePath = p.modulesPath // The default passed to the constructor
+	} else if !strings.HasPrefix(modulePath, string(os.PathSeparator)) {
+		modulePath = path.Join(environmentRoot, modulePath)
 	}
 
 	for _, module := range parsedModules {
