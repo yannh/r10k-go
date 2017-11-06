@@ -186,16 +186,12 @@ func (p *PuppetFile) Process(modules chan<- PuppetModule, done func()) error {
 	}
 
 	// Default to the variable given in constructor
-	// If relative, append it to the directory of the Puppetfile
 	modulesDir := p.modulesPath
-	if !strings.HasPrefix(modulesDir, string(os.PathSeparator)) {
-		modulesDir = path.Join(path.Dir(p.filename), modulesDir)
-	}
 
 	// The moduledir option in the Puppetfile overrides the default
 	if _, ok := opts["moduledir"]; ok {
 		modulesDir = opts["moduledir"]
-		if !strings.HasPrefix(modulesDir, string(os.PathSeparator)) {
+		if !path.IsAbs(modulesDir) {
 			modulesDir = path.Join(path.Dir(p.filename), modulesDir)
 		}
 	}

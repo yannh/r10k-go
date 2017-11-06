@@ -210,35 +210,23 @@ func main() {
 	}
 
 	if cliOpts["install"] == true {
+		puppetfile := ""
 		if cliOpts["--puppetfile"] == nil {
 			wd, _ := os.Getwd()
-			puppetfile := path.Join(wd, "Puppetfile")
-			pf := NewPuppetFile(puppetfile, path.Join(path.Dir(puppetfile), "modules"))
-			if pf == nil {
-				log.Fatalf("no such file or directory %s", puppetfile)
-			}
-			puppetFiles = append(puppetFiles, pf)
+			puppetfile = path.Join(wd, "Puppetfile")
 		} else {
-			puppetfile := cliOpts["--puppetfile"].(string)
-			pf := NewPuppetFile(puppetfile, path.Join(path.Dir(puppetfile), "modules"))
-			if pf == nil {
-				log.Fatalf("no such file or directory %s", puppetfile)
-			}
-			puppetFiles = append(puppetFiles, pf)
+			puppetfile = cliOpts["--puppetfile"].(string)
 		}
+
+		pf := NewPuppetFile(puppetfile, path.Join(path.Dir(puppetfile), "modules"))
+		if pf == nil {
+			log.Fatalf("no such file or directory %s", puppetfile)
+		}
+
+		puppetFiles = append(puppetFiles, pf)
 	}
 
 	if cliOpts["install"] == true || cliOpts["deploy"] == true {
-		if len(puppetFiles) == 0 {
-			wd, _ := os.Getwd()
-			puppetfile := path.Join(wd, "Puppetfile")
-			pf := NewPuppetFile(path.Join(wd, "Puppetfile"), path.Join(wd, "modules"))
-			if pf == nil {
-				log.Fatalf("no such file or directory %s", puppetfile)
-			}
-			puppetFiles = append(puppetFiles, pf)
-		}
-
 		results := make(chan DownloadResult)
 		modules := make(chan PuppetModule)
 
