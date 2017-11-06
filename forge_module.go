@@ -18,8 +18,6 @@ type ForgeModule struct {
 	name          string
 	version       string
 	path          string
-	installPath   string
-	targetFolder  string
 	modulesFolder string
 	cacheFolder   string
 	processed     func()
@@ -106,7 +104,7 @@ func (m *ForgeModule) ModulesFolder() string {
 	return m.modulesFolder
 }
 
-func (m *ForgeModule) downloadURL() (string, error) {
+func (m *ForgeModule) getArchiveURL() (string, error) {
 	forgeURL := "https://forgeapi.puppetlabs.com:443/"
 	APIVersion := "v3"
 
@@ -165,7 +163,7 @@ func (m *ForgeModule) Download() DownloadError {
 	var url string
 
 	forgeURL := "https://forgeapi.puppetlabs.com:443/"
-	if url, err = m.downloadURL(); err != nil {
+	if url, err = m.getArchiveURL(); err != nil {
 		return DownloadError{err, true}
 	}
 

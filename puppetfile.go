@@ -18,7 +18,7 @@ type PuppetFile struct {
 	modulesPath string
 }
 
-func NewPuppetFile(modulesPath string, puppetfile string) *PuppetFile {
+func NewPuppetFile(puppetfile string, modulesPath string) *PuppetFile {
 	f, err := os.Open(puppetfile)
 	if err != nil {
 		return nil
@@ -102,16 +102,14 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 				Ref:    ref,
 				Tag:    tag,
 				Branch: branch,
-			},
-			cacheFolder: ""}, nil
+			}}, nil
 
 	case moduleType == "github_tarball":
 		return &GithubTarballModule{
-			name:        name,
-			repoName:    repoName,
-			version:     version,
-			processed:   p.moduleProcessedCallback,
-			cacheFolder: "",
+			name:      name,
+			repoName:  repoName,
+			version:   version,
+			processed: p.moduleProcessedCallback,
 		}, nil
 
 	default:
@@ -169,7 +167,6 @@ func (p *PuppetFile) parse(s *bufio.Scanner) ([]PuppetModule, map[string]string,
 
 			block = ""
 		}
-
 	}
 
 	return modules, opts, nil
@@ -179,6 +176,8 @@ type ErrMalformedPuppetfile struct{ s string }
 
 func (e ErrMalformedPuppetfile) Error() string { return e.s }
 
+// The done func passed as parameter gets called when all modules
+// from this file are processed
 func (p *PuppetFile) Process(modules chan<- PuppetModule, done func()) error {
 	parsedModules, opts, err := p.parse(bufio.NewScanner(p.File))
 	if err != nil {
@@ -186,17 +185,23 @@ func (p *PuppetFile) Process(modules chan<- PuppetModule, done func()) error {
 		return ErrMalformedPuppetfile{err.Error()}
 	}
 
-	environmentRoot := path.Dir(p.filename)
-	modulePath, ok := opts["moduledir"]
+	// Default to the variable given in constructor
+	// If relative, append it to the directory of the Puppetfile
+	modulesDir := p.modulesPath
+	if !strings.HasPrefix(modulesDir, string(os.PathSeparator)) {
+		modulesDir = path.Join(path.Dir(p.filename), modulesDir)
+	}
 
-	if !ok {
-		modulePath = p.modulesPath // The default passed to the constructor
-	} else if !strings.HasPrefix(modulePath, string(os.PathSeparator)) {
-		modulePath = path.Join(environmentRoot, modulePath)
+	// The moduledir option in the Puppetfile overrides the default
+	if _, ok := opts["moduledir"]; ok {
+		modulesDir = opts["moduledir"]
+		if !strings.HasPrefix(modulesDir, string(os.PathSeparator)) {
+			modulesDir = path.Join(path.Dir(p.filename), modulesDir)
+		}
 	}
 
 	for _, module := range parsedModules {
-		module.SetModulesFolder(modulePath)
+		module.SetModulesFolder(modulesDir)
 		p.wg.Add(1)
 		modules <- module
 	}

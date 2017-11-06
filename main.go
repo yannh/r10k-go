@@ -1,8 +1,7 @@
 package main
 
-// Todo: Remove duplication between modules
-// TODO: Move Git wrappers to own module
-// TODO: Split downloadmodules in 2 to simplify lock management
+// TODO Fix installpath
+// TODO ParseDownloadREsults is a mess, nedds simplifying
 
 import (
 	"github.com/yannh/r10k-go/git"
@@ -52,6 +51,7 @@ type DownloadResult struct {
 
 func downloadModule(m PuppetModule, cache *Cache) DownloadResult {
 	derr := DownloadError{nil, false}
+	m.SetCacheFolder(path.Join(cache.Folder, m.Hash())) // TODO: This is a mess
 
 	if m.IsUpToDate() {
 		return DownloadResult{err: DownloadError{nil, false}, skipped: true, willRetry: false, m: m}
@@ -68,13 +68,11 @@ func downloadModule(m PuppetModule, cache *Cache) DownloadResult {
 	return DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m}
 }
 
-// Simplify
-func downloadModules(c chan PuppetModule, results chan DownloadResult, cache *Cache) {
+func downloadModules(modules chan PuppetModule, results chan DownloadResult, cache *Cache) {
 	maxTries := 3
 	retryDelay := 5 * time.Second
 
-	for m := range c {
-		m.SetCacheFolder(path.Join(cache.Folder, m.Hash()))
+	for m := range modules {
 		cache.LockModule(m.Hash())
 
 		dres := downloadModule(m, cache)
@@ -178,6 +176,7 @@ func main() {
 		}
 
 		// Find in which source the environment is
+		// TODO: render deterministic
 		for _, envName := range cliOpts["<env>"].([]string) {
 			environmentSource := ""
 
@@ -191,18 +190,18 @@ func main() {
 			sourceCacheFolder := path.Join(cacheDir, environmentSource)
 
 			// Clone if environment doesnt exist, fetch otherwise
-			if err := git.RevParse(path.Join(cacheDir, environmentSource)); err != nil {
+			if err := git.RevParse(sourceCacheFolder); err != nil {
 				if err := git.Clone(r10kConfig.Sources[environmentSource].Remote, git.Ref{Branch: envName}, sourceCacheFolder); err != nil {
 					log.Fatalf("failed downloading environment: %v", err)
 				}
 			} else {
-				git.Fetch(path.Join(cacheDir, environmentSource))
+				git.Fetch(sourceCacheFolder)
 			}
 
-			git.WorktreeAdd(path.Join(cacheDir, environmentSource), git.Ref{Branch: envName}, path.Join(r10kConfig.Sources[environmentSource].Basedir, envName))
+			git.WorktreeAdd(sourceCacheFolder, git.Ref{Branch: envName}, path.Join(r10kConfig.Sources[environmentSource].Basedir, envName))
 			puppetfile := path.Join(r10kConfig.Sources[environmentSource].Basedir, envName, "Puppetfile")
 
-			pf := NewPuppetFile(path.Join(path.Dir(puppetfile), "modules"), puppetfile)
+			pf := NewPuppetFile(puppetfile, path.Join(path.Dir(puppetfile), "modules"))
 			if pf == nil {
 				log.Fatalf("no such file or directory %s", puppetfile)
 			}
@@ -214,14 +213,14 @@ func main() {
 		if cliOpts["--puppetfile"] == nil {
 			wd, _ := os.Getwd()
 			puppetfile := path.Join(wd, "Puppetfile")
-			pf := NewPuppetFile(path.Join(path.Dir(puppetfile), "modules"), puppetfile)
+			pf := NewPuppetFile(puppetfile, path.Join(path.Dir(puppetfile), "modules"))
 			if pf == nil {
 				log.Fatalf("no such file or directory %s", puppetfile)
 			}
 			puppetFiles = append(puppetFiles, pf)
 		} else {
 			puppetfile := cliOpts["--puppetfile"].(string)
-			pf := NewPuppetFile(path.Join(path.Dir(puppetfile), "modules"), puppetfile)
+			pf := NewPuppetFile(puppetfile, path.Join(path.Dir(puppetfile), "modules"))
 			if pf == nil {
 				log.Fatalf("no such file or directory %s", puppetfile)
 			}
@@ -233,7 +232,7 @@ func main() {
 		if len(puppetFiles) == 0 {
 			wd, _ := os.Getwd()
 			puppetfile := path.Join(wd, "Puppetfile")
-			pf := NewPuppetFile(path.Join(wd, "modules"), path.Join(wd, "Puppetfile"))
+			pf := NewPuppetFile(path.Join(wd, "Puppetfile"), path.Join(wd, "modules"))
 			if pf == nil {
 				log.Fatalf("no such file or directory %s", puppetfile)
 			}
