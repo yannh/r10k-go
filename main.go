@@ -17,7 +17,7 @@ import (
 type PuppetModule interface {
 	CacheableModule
 	Name() string
-	Download() DownloadError
+	Download(string, *Cache) DownloadError
 	Folder() string
 	SetModulesFolder(to string)
 	ModulesFolder() string
@@ -26,7 +26,6 @@ type PuppetModule interface {
 }
 
 type CacheableModule interface {
-	SetCacheFolder(string)
 	IsUpToDate() bool
 }
 
@@ -45,27 +44,23 @@ type DownloadError struct {
 type DownloadResult struct {
 	err       DownloadError
 	skipped   bool
-	willRetry bool
-	m         PuppetModule
+	retryable bool
 }
 
 func downloadModule(m PuppetModule, cache *Cache) DownloadResult {
-	derr := DownloadError{nil, false}
-	m.SetCacheFolder(path.Join(cache.Folder, m.Hash())) // FIXME: This is a mess
-
 	if m.IsUpToDate() {
-		return DownloadResult{err: DownloadError{nil, false}, skipped: true, willRetry: false, m: m}
+		return DownloadResult{err: DownloadError{nil, false}, skipped: true, retryable: false}
 	}
 
 	if err := os.RemoveAll(m.Folder()); err != nil {
 		log.Fatalf("Error removing folder: %s", m.Folder())
 	}
 
-	if derr = m.Download(); derr.error != nil {
-		return DownloadResult{err: derr, skipped: false, willRetry: true, m: m}
+	if derr := m.Download(m.Folder(), cache); derr.error != nil {
+		return DownloadResult{err: derr, skipped: false, retryable: true}
 	}
 
-	return DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m}
+	return DownloadResult{err: DownloadError{nil, false}, skipped: false, retryable: false}
 }
 
 func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool, wg *sync.WaitGroup, errorsCount chan<- int) {
@@ -78,14 +73,14 @@ func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool,
 
 		dres := downloadModule(m, cache)
 		for i := 1; dres.err.error != nil && dres.err.retryable && i < maxTries; i++ {
-			log.Printf("failed downloading %s: %v... Retrying\n", dres.m.Name(), dres.err)
+			log.Printf("failed downloading %s: %v... Retrying\n", m.Name(), dres.err)
 			time.Sleep(retryDelay)
 			dres = downloadModule(m, cache)
 		}
 
 		if dres.err.error == nil {
 			if downloadDeps {
-				if mf := NewMetadataFile(dres.m.ModulesFolder(), path.Join(dres.m.Folder(), "metadata.json")); mf != nil {
+				if mf := NewMetadataFile(path.Join(m.Folder(), "metadata.json"), m.ModulesFolder()); mf != nil {
 					wg.Add(1)
 					go func() {
 						processModuleFile(mf, modules)
@@ -96,14 +91,14 @@ func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool,
 			}
 
 			if !dres.skipped {
-				log.Println("Downloaded " + dres.m.Name() + " to " + dres.m.ModulesFolder())
+				log.Println("Downloaded " + m.Name() + " to " + m.ModulesFolder())
 			}
 		} else {
-			log.Printf("failed downloading %s: %v. Giving up!\n", dres.m.Name(), dres.err)
+			log.Printf("failed downloading %s: %v. Giving up!\n", m.Name(), dres.err)
 			errors++
 		}
 
-		dres.m.Processed()
+		m.Processed()
 		cache.UnlockModule(m.Hash())
 	}
 

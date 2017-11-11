@@ -27,10 +27,6 @@ func (m *ForgeModule) Processed() {
 	m.processed()
 }
 
-func (m *ForgeModule) SetCacheFolder(folder string) {
-	m.cacheFolder = folder
-}
-
 func (m *ForgeModule) SetModulesFolder(to string) {
 	m.modulesFolder = to
 }
@@ -158,9 +154,11 @@ func (m *ForgeModule) getArchiveURL() (string, error) {
 	return mr.Results[index].File_uri, nil
 }
 
-func (m *ForgeModule) Download() DownloadError {
+func (m *ForgeModule) Download(to string, cache *Cache) DownloadError {
 	var err error
 	var url string
+
+	m.cacheFolder = path.Join(cache.Folder, m.Hash())
 
 	forgeURL := "https://forgeapi.puppetlabs.com:443/"
 	if url, err = m.getArchiveURL(); err != nil {
@@ -184,11 +182,11 @@ func (m *ForgeModule) Download() DownloadError {
 	}
 	defer r.Close()
 
-	if err = gzip.Extract(r, m.Folder()); err != nil {
+	if err = gzip.Extract(r, to); err != nil {
 		return DownloadError{err, true}
 	}
 
-	versionFile := path.Join(m.Folder(), ".version")
+	versionFile := path.Join(to, ".version")
 	f, err := os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return DownloadError{fmt.Errorf("could not create file %s", versionFile), false}

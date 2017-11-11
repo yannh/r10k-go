@@ -56,10 +56,6 @@ func (m *GithubTarballModule) ModulesFolder() string {
 	return m.modulesFolder
 }
 
-func (m *GithubTarballModule) SetCacheFolder(cacheFolder string) {
-	m.cacheFolder = cacheFolder
-}
-
 func (m *GithubTarballModule) Hash() string {
 	hasher := sha1.New()
 	hasher.Write([]byte(m.name))
@@ -148,9 +144,11 @@ func (m *GithubTarballModule) downloadURL() (string, error) {
 	return gr[index].Tarball_url, nil
 }
 
-func (m *GithubTarballModule) Download() DownloadError {
+func (m *GithubTarballModule) Download(to string, cache *Cache) DownloadError {
 	var err error
 	var url string
+
+	m.cacheFolder = path.Join(cache.Folder, m.Hash())
 
 	if url, err = m.downloadURL(); err != nil {
 		return DownloadError{err, true}
@@ -173,11 +171,11 @@ func (m *GithubTarballModule) Download() DownloadError {
 
 	defer r.Close()
 
-	if err = gzip.Extract(r, m.Folder()); err != nil {
+	if err = gzip.Extract(r, to); err != nil {
 		return DownloadError{err, false}
 	}
 
-	versionFile := path.Join(m.Folder(), ".version")
+	versionFile := path.Join(to, ".version")
 	r, err = os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return DownloadError{fmt.Errorf("Failed creating file %s", versionFile), false}

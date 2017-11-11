@@ -23,7 +23,7 @@ type MetadataFile struct {
 	ModulesPath string
 }
 
-func NewMetadataFile(modulesPath string, metadataFile string) *MetadataFile {
+func NewMetadataFile(metadataFile string, modulesPath string) *MetadataFile {
 	// We just ignore if the file doesn't exist'
 	f, err := os.Open(metadataFile)
 	if err != nil {
