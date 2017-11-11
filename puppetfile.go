@@ -178,10 +178,10 @@ func (e ErrMalformedPuppetfile) Error() string { return e.s }
 
 // The done func passed as parameter gets called when all modules
 // from this file are processed
-func (p *PuppetFile) Process(modules chan<- PuppetModule, done func()) error {
+func (p *PuppetFile) Process(modules chan<- PuppetModule, done chan bool) error {
 	parsedModules, opts, err := p.parse(bufio.NewScanner(p.File))
 	if err != nil {
-		done()
+		done <- true
 		return ErrMalformedPuppetfile{err.Error()}
 	}
 
@@ -204,7 +204,7 @@ func (p *PuppetFile) Process(modules chan<- PuppetModule, done func()) error {
 
 	go func() {
 		p.wg.Wait()
-		done()
+		done <- true
 	}()
 
 	return nil
