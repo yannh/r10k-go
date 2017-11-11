@@ -15,7 +15,7 @@ import (
 
 // ForgeModule, GitModule, GithubTarballModule, ....
 type PuppetModule interface {
-	CacheableModule
+	IsUpToDate() bool
 	Name() string
 	Download(string, *Cache) DownloadError
 	Folder() string
@@ -23,10 +23,6 @@ type PuppetModule interface {
 	ModulesFolder() string
 	Hash() string
 	Processed()
-}
-
-type CacheableModule interface {
-	IsUpToDate() bool
 }
 
 // Can be a PuppetFile or a metadata.json file
@@ -42,14 +38,13 @@ type DownloadError struct {
 }
 
 type DownloadResult struct {
-	err       DownloadError
-	skipped   bool
-	retryable bool
+	err     DownloadError
+	skipped bool
 }
 
 func downloadModule(m PuppetModule, cache *Cache) DownloadResult {
 	if m.IsUpToDate() {
-		return DownloadResult{err: DownloadError{nil, false}, skipped: true, retryable: false}
+		return DownloadResult{err: DownloadError{nil, false}, skipped: true}
 	}
 
 	if err := os.RemoveAll(m.Folder()); err != nil {
@@ -57,10 +52,10 @@ func downloadModule(m PuppetModule, cache *Cache) DownloadResult {
 	}
 
 	if derr := m.Download(m.Folder(), cache); derr.error != nil {
-		return DownloadResult{err: derr, skipped: false, retryable: true}
+		return DownloadResult{err: derr, skipped: false}
 	}
 
-	return DownloadResult{err: DownloadError{nil, false}, skipped: false, retryable: false}
+	return DownloadResult{err: DownloadError{nil, false}, skipped: false}
 }
 
 func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool, wg *sync.WaitGroup, errorsCount chan<- int) {
