@@ -33,7 +33,7 @@ type CacheableModule interface {
 // Can be a PuppetFile or a metadata.json file
 type moduleFile interface {
 	Filename() string
-	Process(modules chan<- PuppetModule, done chan bool) error
+	Process(modules chan<- PuppetModule) error
 	Close()
 }
 
@@ -110,15 +110,13 @@ func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool,
 }
 
 func processModuleFile(mf moduleFile, modules chan PuppetModule) {
-	moduleFileDone := make(chan bool)
-	if err := mf.Process(modules, moduleFileDone); err != nil {
+	if err := mf.Process(modules); err != nil {
 		if serr, ok := err.(ErrMalformedPuppetfile); ok {
 			log.Fatal(serr)
 		} else {
 			log.Printf("failed parsing %s: %v\n", mf.Filename(), err)
 		}
 	}
-	<-moduleFileDone
 	mf.Close()
 }
 
@@ -221,10 +219,10 @@ func main() {
 
 		for _, pf := range puppetFiles {
 			wg.Add(1)
-			go func() {
+			go func(pf moduleFile, modules chan PuppetModule) {
 				processModuleFile(pf, modules)
 				wg.Done()
-			}()
+			}(pf, modules)
 		}
 
 		wg.Wait()

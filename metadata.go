@@ -37,17 +37,15 @@ func (m *MetadataFile) moduleProcessedCallback() { m.wg.Done() }
 func (m *MetadataFile) Close()                   { m.File.Close() }
 func (m *MetadataFile) Filename() string         { return m.filename }
 
-func (m *MetadataFile) Process(modulesChan chan<- PuppetModule, done chan bool) error {
+func (m *MetadataFile) Process(modulesChan chan<- PuppetModule) error {
 	var meta Metadata
 
 	metadataFile, err := ioutil.ReadAll(m.File)
 	if err != nil {
-		done <- true
 		return fmt.Errorf("could not read JSON file %v", err)
 	}
 
 	if err = json.Unmarshal(metadataFile, &meta); err != nil {
-		done <- true
 		return fmt.Errorf("JSON file malformed: %v", err)
 	}
 
@@ -60,10 +58,6 @@ func (m *MetadataFile) Process(modulesChan chan<- PuppetModule, done chan bool) 
 		}
 	}
 
-	go func() {
-		m.wg.Wait()
-		done <- true
-	}()
-
+	m.wg.Wait()
 	return nil
 }
