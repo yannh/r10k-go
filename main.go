@@ -85,10 +85,12 @@ func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool,
 
 		if dres.err.error == nil {
 			if downloadDeps {
-				mf := NewMetadataFile(dres.m.ModulesFolder(), path.Join(dres.m.Folder(), "metadata.json"))
-				if mf != nil {
+				if mf := NewMetadataFile(dres.m.ModulesFolder(), path.Join(dres.m.Folder(), "metadata.json")); mf != nil {
 					wg.Add(1)
-					go func() { metadataFiles <- mf }()
+					go func() {
+						processModuleFile(mf, modules)
+						wg.Done()
+					}()
 				}
 			}
 
@@ -107,21 +109,17 @@ func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool,
 	errorsCount <- errors
 }
 
-func processModuleFiles(moduleFiles <-chan moduleFile, modules chan PuppetModule, wg *sync.WaitGroup, done chan bool) {
-	for mf := range moduleFiles {
-		done := make(chan bool)
-		if err := mf.Process(modules, done); err != nil {
-			if serr, ok := err.(ErrMalformedPuppetfile); ok {
-				log.Fatal(serr)
-			} else {
-				log.Printf("failed parsing %s: %v\n", mf.Filename(), err)
-			}
+func processModuleFile(mf moduleFile, modules chan PuppetModule) {
+	moduleFileDone := make(chan bool)
+	if err := mf.Process(modules, moduleFileDone); err != nil {
+		if serr, ok := err.(ErrMalformedPuppetfile); ok {
+			log.Fatal(serr)
+		} else {
+			log.Printf("failed parsing %s: %v\n", mf.Filename(), err)
 		}
-		go func() { <-done; wg.Done() }()
-		mf.Close()
 	}
-
-	done <- true
+	<-moduleFileDone
+	mf.Close()
 }
 
 func main() {
@@ -210,31 +208,28 @@ func main() {
 	}
 
 	if cliOpts["install"] == true || cliOpts["deploy"] == true {
-		results := make(chan DownloadResult)
 		modules := make(chan PuppetModule)
 
 		var wg sync.WaitGroup
 		moduleFiles := make(chan moduleFile)
 
-		done := make(chan bool)
 		errorCount := make(chan int)
 
 		for w := 1; w <= numWorkers; w++ {
 			go downloadModules(modules, cache, !cliOpts["--no-deps"].(bool), moduleFiles, &wg, errorCount)
 		}
 
-		go processModuleFiles(moduleFiles, modules, &wg, done)
-
 		for _, pf := range puppetFiles {
 			wg.Add(1)
-			go func(file *PuppetFile) { moduleFiles <- file }(pf)
+			go func() {
+				processModuleFile(pf, modules)
+				wg.Done()
+			}()
 		}
 
 		wg.Wait()
 		close(modules)
 		close(moduleFiles)
-		<-done
-		close(results)
 
 		nErr := 0
 		for w := 1; w <= numWorkers; w++ {
