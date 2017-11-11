@@ -176,8 +176,6 @@ type ErrMalformedPuppetfile struct{ s string }
 
 func (e ErrMalformedPuppetfile) Error() string { return e.s }
 
-// The done func passed as parameter gets called when all modules
-// from this file are processed
 func (p *PuppetFile) Process(modules chan<- PuppetModule) error {
 	parsedModules, opts, err := p.parse(bufio.NewScanner(p.File))
 	if err != nil {

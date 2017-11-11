@@ -51,7 +51,7 @@ type DownloadResult struct {
 
 func downloadModule(m PuppetModule, cache *Cache) DownloadResult {
 	derr := DownloadError{nil, false}
-	m.SetCacheFolder(path.Join(cache.Folder, m.Hash())) // TODO: This is a mess
+	m.SetCacheFolder(path.Join(cache.Folder, m.Hash())) // FIXME: This is a mess
 
 	if m.IsUpToDate() {
 		return DownloadResult{err: DownloadError{nil, false}, skipped: true, willRetry: false, m: m}
@@ -68,7 +68,7 @@ func downloadModule(m PuppetModule, cache *Cache) DownloadResult {
 	return DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m}
 }
 
-func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool, metadataFiles chan<- moduleFile, wg *sync.WaitGroup, errorsCount chan<- int) {
+func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool, wg *sync.WaitGroup, errorsCount chan<- int) {
 	maxTries := 3
 	retryDelay := 5 * time.Second
 	errors := 0
@@ -77,7 +77,7 @@ func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool,
 		cache.LockModule(m.Hash())
 
 		dres := downloadModule(m, cache)
-		for i := 0; dres.err.error != nil && i < maxTries-1 && dres.err.retryable; i++ {
+		for i := 1; dres.err.error != nil && dres.err.retryable && i < maxTries; i++ {
 			log.Printf("failed downloading %s: %v... Retrying\n", dres.m.Name(), dres.err)
 			time.Sleep(retryDelay)
 			dres = downloadModule(m, cache)
@@ -89,6 +89,7 @@ func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool,
 					wg.Add(1)
 					go func() {
 						processModuleFile(mf, modules)
+						mf.Close()
 						wg.Done()
 					}()
 				}
@@ -98,8 +99,8 @@ func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool,
 				log.Println("Downloaded " + dres.m.Name() + " to " + dres.m.ModulesFolder())
 			}
 		} else {
-			errors++
 			log.Printf("failed downloading %s: %v. Giving up!\n", dres.m.Name(), dres.err)
+			errors++
 		}
 
 		dres.m.Processed()
@@ -117,7 +118,6 @@ func processModuleFile(mf moduleFile, modules chan PuppetModule) {
 			log.Printf("failed parsing %s: %v\n", mf.Filename(), err)
 		}
 	}
-	mf.Close()
 }
 
 func main() {
@@ -209,25 +209,23 @@ func main() {
 		modules := make(chan PuppetModule)
 
 		var wg sync.WaitGroup
-		moduleFiles := make(chan moduleFile)
-
 		errorCount := make(chan int)
 
 		for w := 1; w <= numWorkers; w++ {
-			go downloadModules(modules, cache, !cliOpts["--no-deps"].(bool), moduleFiles, &wg, errorCount)
+			go downloadModules(modules, cache, !cliOpts["--no-deps"].(bool), &wg, errorCount)
 		}
 
 		for _, pf := range puppetFiles {
 			wg.Add(1)
 			go func(pf moduleFile, modules chan PuppetModule) {
 				processModuleFile(pf, modules)
+				pf.Close()
 				wg.Done()
 			}(pf, modules)
 		}
 
 		wg.Wait()
 		close(modules)
-		close(moduleFiles)
 
 		nErr := 0
 		for w := 1; w <= numWorkers; w++ {
