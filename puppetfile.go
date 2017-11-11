@@ -12,7 +12,7 @@ import (
 )
 
 type PuppetFile struct {
-	*os.File
+	*os.File    // Make that a io.Reader
 	wg          *sync.WaitGroup
 	filename    string
 	modulesPath string

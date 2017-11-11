@@ -68,28 +68,43 @@ func downloadModule(m PuppetModule, cache *Cache) DownloadResult {
 	return DownloadResult{err: DownloadError{nil, false}, skipped: false, willRetry: false, m: m}
 }
 
-func downloadModules(modules chan PuppetModule, results chan DownloadResult, cache *Cache) {
+func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool, metadataFiles chan<- moduleFile, wg *sync.WaitGroup, errorsCount chan<- int) {
 	maxTries := 3
 	retryDelay := 5 * time.Second
+	errors := 0
 
 	for m := range modules {
 		cache.LockModule(m.Hash())
 
 		dres := downloadModule(m, cache)
 		for i := 0; dres.err.error != nil && i < maxTries-1 && dres.err.retryable; i++ {
-			go func(dres DownloadResult) {
-				results <- dres
-			}(dres)
+			log.Printf("failed downloading %s: %v... Retrying\n", dres.m.Name(), dres.err)
 			time.Sleep(retryDelay)
 			dres = downloadModule(m, cache)
 		}
 
-		go func(dres DownloadResult) {
-			results <- dres
-		}(dres)
+		if dres.err.error == nil {
+			if downloadDeps {
+				mf := NewMetadataFile(dres.m.ModulesFolder(), path.Join(dres.m.Folder(), "metadata.json"))
+				if mf != nil {
+					wg.Add(1)
+					go func() { metadataFiles <- mf }()
+				}
+			}
 
+			if !dres.skipped {
+				log.Println("Downloaded " + dres.m.Name() + " to " + dres.m.ModulesFolder())
+			}
+		} else {
+			errors++
+			log.Printf("failed downloading %s: %v. Giving up!\n", dres.m.Name(), dres.err)
+		}
+
+		dres.m.Processed()
 		cache.UnlockModule(m.Hash())
 	}
+
+	errorsCount <- errors
 }
 
 func processModuleFiles(moduleFiles <-chan moduleFile, modules chan PuppetModule, wg *sync.WaitGroup, done chan bool) {
@@ -105,40 +120,6 @@ func processModuleFiles(moduleFiles <-chan moduleFile, modules chan PuppetModule
 	}
 
 	done <- true
-}
-
-func ParseDownloadResults(results <-chan DownloadResult, downloadDeps bool, metadataFiles chan<- moduleFile, wg *sync.WaitGroup, errorsCount chan<- int) {
-	downloadErrors := 0
-
-	for res := range results {
-		if res.err.error != nil {
-			if res.err.retryable == true && res.willRetry == true {
-				log.Printf("failed downloading %s: %v... Retrying\n", res.m.Name(), res.err)
-			} else {
-				log.Printf("failed downloading %s: %v. Giving up!\n", res.m.Name(), res.err)
-				downloadErrors++
-			}
-			res.m.Processed()
-			continue
-		}
-
-		if res.skipped != true {
-			log.Println("Downloaded " + res.m.Name() + " to " + res.m.ModulesFolder())
-		}
-
-		// This should not be here
-		if downloadDeps {
-			mf := NewMetadataFile(res.m.ModulesFolder(), path.Join(res.m.Folder(), "metadata.json"))
-			if mf != nil {
-				wg.Add(1)
-				go func() { metadataFiles <- mf }()
-			}
-		}
-
-		res.m.Processed()
-	}
-
-	errorsCount <- downloadErrors
 }
 
 func main() {
@@ -230,18 +211,17 @@ func main() {
 		results := make(chan DownloadResult)
 		modules := make(chan PuppetModule)
 
-		for w := 1; w <= numWorkers; w++ {
-			go downloadModules(modules, results, cache)
-		}
-
 		var wg sync.WaitGroup
 		moduleFiles := make(chan moduleFile)
 
 		done := make(chan bool)
 		errorCount := make(chan int)
 
+		for w := 1; w <= numWorkers; w++ {
+			go downloadModules(modules, cache, !cliOpts["--no-deps"].(bool), moduleFiles, &wg, errorCount)
+		}
+
 		go processModuleFiles(moduleFiles, modules, &wg, done)
-		go ParseDownloadResults(results, !cliOpts["--no-deps"].(bool), moduleFiles, &wg, errorCount)
 
 		for _, pf := range puppetFiles {
 			wg.Add(1)
@@ -253,7 +233,12 @@ func main() {
 		close(moduleFiles)
 		<-done
 		close(results)
-		nErr := <-errorCount
+
+		nErr := 0
+		for w := 1; w <= numWorkers; w++ {
+			nErr += <-errorCount
+		}
+
 		close(errorCount)
 
 		os.Exit(nErr)
