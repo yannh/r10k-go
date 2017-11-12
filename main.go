@@ -1,6 +1,7 @@
 package main
 
 // TODO Fix installpath
+// Pass a DownloadRequest to DownloadModules instead of Module: Module + Environment
 
 import (
 	"github.com/yannh/r10k-go/git"
@@ -14,20 +15,12 @@ import (
 
 // ForgeModule, GitModule, GithubTarballModule, ....
 type PuppetModule interface {
-	IsUpToDate() bool
+	IsUpToDate(string) bool
 	Name() string
 	Download(string, *Cache) *DownloadError
 	Folder() string
-	SetModulesFolder(to string)
-	ModulesFolder() string
 	Hash() string
 	Processed()
-}
-
-// Can be a PuppetFile or a metadata.json file
-type moduleFile interface {
-	Filename() string
-	Process(modules chan<- PuppetModule) error
 }
 
 type DownloadError struct {
@@ -40,43 +33,63 @@ type DownloadResult struct {
 	skipped bool
 }
 
-func downloadModule(m PuppetModule, cache *Cache) DownloadResult {
-	if m.IsUpToDate() {
+type source struct {
+	Basedir string
+	Prefix  string
+	Remote  string
+}
+
+type environment struct {
+	source
+	branch string
+}
+
+type downloadRequest struct {
+	m    PuppetModule
+	env  environment
+	done chan bool
+}
+
+func downloadModule(m PuppetModule, to string, cache *Cache) DownloadResult {
+	if m.IsUpToDate(to) {
 		return DownloadResult{err: nil, skipped: true}
 	}
 
-	if err := os.RemoveAll(m.Folder()); err != nil {
+	if err := os.RemoveAll(to); err != nil {
 		log.Fatalf("Error removing folder: %s", m.Folder())
 	}
 
-	if derr := m.Download(m.Folder(), cache); derr != nil {
+	if derr := m.Download(to, cache); derr != nil {
 		return DownloadResult{err: derr, skipped: false}
 	}
 
 	return DownloadResult{err: nil, skipped: false}
 }
 
-func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool, wg *sync.WaitGroup, errorsCount chan<- int) {
+func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, wg *sync.WaitGroup, errorsCount chan<- int) {
 	maxTries := 3
 	retryDelay := 5 * time.Second
 	errors := 0
 
-	for m := range modules {
-		cache.LockModule(m.Hash())
+	for dr := range drs {
+		cache.LockModule(dr.m.Hash())
 
-		dres := downloadModule(m, cache)
+		modulesFolder := path.Join(dr.env.Basedir, "modules")
+		to := path.Join(modulesFolder, dr.m.Folder())
+
+		dres := downloadModule(dr.m, to, cache)
 		for i := 1; dres.err != nil && dres.err.retryable && i < maxTries; i++ {
-			log.Printf("failed downloading %s: %v... Retrying\n", m.Name(), dres.err)
+			log.Printf("failed downloading %s: %v... Retrying\n", dr.m.Name(), dres.err)
 			time.Sleep(retryDelay)
-			dres = downloadModule(m, cache)
+			dres = downloadModule(dr.m, to, cache)
 		}
 
 		if dres.err == nil {
-			if downloadDeps {
-				if mf := NewMetadataFile(path.Join(m.Folder(), "metadata.json"), m.ModulesFolder()); mf != nil {
+			if downloadDeps && !dres.skipped {
+				if mf := NewMetadataFile(path.Join(to, "metadata.json"), dr.env); mf != nil {
 					wg.Add(1)
 					go func() {
-						if err := mf.Process(modules); err != nil {
+						if err := mf.Process(drs); err != nil {
 							log.Printf("failed parsing %s: %v\n", mf.Filename(), err)
 						}
 
@@ -87,15 +100,15 @@ func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool,
 			}
 
 			if !dres.skipped {
-				log.Println("Downloaded " + m.Name() + " to " + m.ModulesFolder())
+				log.Println("Downloaded " + dr.m.Name() + " to " + to)
 			}
 		} else {
-			log.Printf("failed downloading %s: %v. Giving up!\n", m.Name(), dres.err)
+			log.Printf("failed downloading %s: %v. Giving up!\n", dr.m.Name(), dres.err)
 			errors++
 		}
 
-		m.Processed()
-		cache.UnlockModule(m.Hash())
+		dr.m.Processed()
+		cache.UnlockModule(dr.m.Hash())
 	}
 
 	errorsCount <- errors
@@ -135,20 +148,22 @@ func main() {
 			cacheDir = r10kConfig.Cachedir
 		}
 
+		var s source
+
 		// Find in which source the environment is
 		// TODO: render deterministic
 		for _, envName := range cliOpts["<env>"].([]string) {
 			environmentSource := ""
 
-			for sourceName, sourceOpts := range r10kConfig.Sources {
-				if git.RepoHasBranch(sourceOpts.Remote, envName) {
+			for sourceName, source := range r10kConfig.Sources {
+				if git.RepoHasBranch(source.Remote, envName) {
 					environmentSource = sourceName
+					s = source
 					break
 				}
 			}
 
 			sourceCacheFolder := path.Join(cacheDir, environmentSource)
-
 			// Clone if environment doesnt exist, fetch otherwise
 			if err := git.RevParse(sourceCacheFolder); err != nil {
 				if err := git.Clone(r10kConfig.Sources[environmentSource].Remote, git.Ref{Branch: envName}, sourceCacheFolder); err != nil {
@@ -161,7 +176,7 @@ func main() {
 			git.WorktreeAdd(sourceCacheFolder, git.Ref{Branch: envName}, path.Join(r10kConfig.Sources[environmentSource].Basedir, envName))
 			puppetfile := path.Join(r10kConfig.Sources[environmentSource].Basedir, envName, "Puppetfile")
 
-			pf := NewPuppetFile(puppetfile, path.Join(path.Dir(puppetfile), "modules"))
+			pf := NewPuppetFile(puppetfile, environment{s, envName})
 			if pf == nil {
 				log.Fatalf("no such file or directory %s", puppetfile)
 			}
@@ -178,7 +193,7 @@ func main() {
 			puppetfile = cliOpts["--puppetfile"].(string)
 		}
 
-		pf := NewPuppetFile(puppetfile, path.Join(path.Dir(puppetfile), "modules"))
+		pf := NewPuppetFile(puppetfile, environment{source{Basedir: path.Dir(puppetfile), Prefix: "", Remote: ""}, ""})
 		if pf == nil {
 			log.Fatalf("no such file or directory %s", puppetfile)
 		}
@@ -187,19 +202,19 @@ func main() {
 	}
 
 	if cliOpts["install"] == true || cliOpts["deploy"] == true {
-		modules := make(chan PuppetModule)
+		drs := make(chan downloadRequest)
 
 		var wg sync.WaitGroup
 		errorCount := make(chan int)
 
 		for w := 1; w <= numWorkers; w++ {
-			go downloadModules(modules, cache, !cliOpts["--no-deps"].(bool), &wg, errorCount)
+			go downloadModules(drs, cache, !cliOpts["--no-deps"].(bool), &wg, errorCount)
 		}
 
 		for _, pf := range puppetFiles {
 			wg.Add(1)
-			go func(pf *PuppetFile, modules chan PuppetModule) {
-				if err := pf.Process(modules); err != nil {
+			go func(pf *PuppetFile, drs chan downloadRequest) {
+				if err := pf.Process(drs); err != nil {
 					if serr, ok := err.(ErrMalformedPuppetfile); ok {
 						log.Fatal(serr)
 					} else {
@@ -209,17 +224,16 @@ func main() {
 
 				pf.Close()
 				wg.Done()
-			}(pf, modules)
+			}(pf, drs)
 		}
 
 		wg.Wait()
-		close(modules)
+		close(drs)
 
 		nErr := 0
 		for w := 1; w <= numWorkers; w++ {
 			nErr += <-errorCount
 		}
-
 		close(errorCount)
 
 		os.Exit(nErr)

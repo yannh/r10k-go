@@ -13,21 +13,20 @@ import (
 )
 
 type GitModule struct {
-	name          string
-	repoURL       string
-	modulesFolder string
-	installPath   string
-	cacheFolder   string
-	folder        string
-	processed     func()
-	want          git.Ref
+	name        string
+	repoURL     string
+	installPath string
+	cacheFolder string
+	folder      string
+	processed   func()
+	want        git.Ref
 }
 
 func (m *GitModule) Name() string { return m.name }
 func (m *GitModule) Processed()   { m.processed() }
 
-func (m *GitModule) IsUpToDate() bool {
-	if _, err := os.Stat(m.Folder()); err != nil {
+func (m *GitModule) IsUpToDate(folder string) bool {
+	if _, err := os.Stat(folder); err != nil {
 		return false
 	}
 
@@ -45,7 +44,7 @@ func (m *GitModule) IsUpToDate() bool {
 	}
 
 	cmd := exec.Command("git", "show", "-s", "--pretty=%d", "HEAD")
-	cmd.Dir = m.Folder()
+	cmd.Dir = folder
 	output, _ := cmd.Output()
 
 	if m.want.Branch != "" {
@@ -65,25 +64,12 @@ func (m *GitModule) Hash() string {
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
-func (m *GitModule) SetModulesFolder(to string) {
-	m.modulesFolder = to
-}
-
-func (m *GitModule) ModulesFolder() string {
-	if m.installPath != "" {
-		return m.installPath
-	}
-
-	return m.modulesFolder
-}
-
 func (m *GitModule) Folder() string {
 	splitPath := strings.FieldsFunc(m.Name(), func(r rune) bool {
 		return r == '/' || r == '-'
 	})
-	folderName := splitPath[len(splitPath)-1]
 
-	return path.Join(m.ModulesFolder(), folderName)
+	return splitPath[len(splitPath)-1]
 }
 
 func (m *GitModule) currentCommit() (string, error) {

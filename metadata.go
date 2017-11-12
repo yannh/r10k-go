@@ -18,26 +18,26 @@ type Metadata struct {
 
 type MetadataFile struct {
 	*os.File
-	wg          *sync.WaitGroup
-	filename    string
-	ModulesPath string
+	wg       *sync.WaitGroup
+	filename string
+	env      environment
 }
 
-func NewMetadataFile(metadataFile string, modulesPath string) *MetadataFile {
+func NewMetadataFile(metadataFile string, env environment) *MetadataFile {
 	// We just ignore if the file doesn't exist'
 	f, err := os.Open(metadataFile)
 	if err != nil {
 		return nil
 	}
 
-	return &MetadataFile{File: f, filename: metadataFile, wg: &sync.WaitGroup{}, ModulesPath: modulesPath}
+	return &MetadataFile{File: f, filename: metadataFile, wg: &sync.WaitGroup{}, env: env}
 }
 
 func (m *MetadataFile) moduleProcessedCallback() { m.wg.Done() }
 func (m *MetadataFile) Close()                   { m.File.Close() }
 func (m *MetadataFile) Filename() string         { return m.filename }
 
-func (m *MetadataFile) Process(modulesChan chan<- PuppetModule) error {
+func (m *MetadataFile) Process(drs chan<- downloadRequest) error {
 	var meta Metadata
 
 	metadataFile, err := ioutil.ReadAll(m.File)
@@ -51,10 +51,14 @@ func (m *MetadataFile) Process(modulesChan chan<- PuppetModule) error {
 
 	for _, req := range meta.Dependencies {
 		m.wg.Add(1)
-		modulesChan <- &ForgeModule{
-			name:          req.Name,
-			processed:     m.moduleProcessedCallback,
-			modulesFolder: m.ModulesPath,
+		done := make(chan bool)
+		drs <- downloadRequest{
+			m: &ForgeModule{
+				name:      req.Name,
+				processed: m.moduleProcessedCallback,
+			},
+			env:  m.env,
+			done: done,
 		}
 	}
 

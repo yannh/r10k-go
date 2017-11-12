@@ -8,12 +8,6 @@ import (
 	"os"
 )
 
-type source struct {
-	Basedir string
-	Prefix  string
-	Remote  string
-}
-
 type r10kConfig struct {
 	Cachedir string
 	Sources  map[string]source

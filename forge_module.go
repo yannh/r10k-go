@@ -15,29 +15,23 @@ import (
 )
 
 type ForgeModule struct {
-	name          string
-	version       string
-	path          string
-	modulesFolder string
-	cacheFolder   string
-	processed     func()
+	name        string
+	version     string
+	path        string
+	cacheFolder string
+	processed   func()
 }
 
 func (m *ForgeModule) Processed() {
 	m.processed()
 }
 
-func (m *ForgeModule) SetModulesFolder(to string) {
-	m.modulesFolder = to
-}
-
 func (m *ForgeModule) Folder() string {
 	splitPath := strings.FieldsFunc(m.Name(), func(r rune) bool {
 		return r == '/' || r == '-'
 	})
-	folderName := splitPath[len(splitPath)-1]
 
-	return path.Join(m.modulesFolder, folderName)
+	return splitPath[len(splitPath)-1]
 }
 
 func (m *ForgeModule) Hash() string {
@@ -75,8 +69,8 @@ func (m *ForgeModule) downloadToCache(r io.Reader) error {
 	return err
 }
 
-func (m *ForgeModule) IsUpToDate() bool {
-	_, err := os.Stat(m.Folder())
+func (m *ForgeModule) IsUpToDate(folder string) bool {
+	_, err := os.Stat(folder)
 	if err != nil {
 		return false
 	} else if m.version == "" {
@@ -84,7 +78,7 @@ func (m *ForgeModule) IsUpToDate() bool {
 		return true
 	}
 
-	versionFile := path.Join(m.Folder(), ".version")
+	versionFile := path.Join(folder, ".version")
 	version, err := ioutil.ReadFile(versionFile)
 	if err != nil {
 		// TODO error handling
@@ -94,10 +88,6 @@ func (m *ForgeModule) IsUpToDate() bool {
 	v := string(version)
 
 	return v == m.version
-}
-
-func (m *ForgeModule) ModulesFolder() string {
-	return m.modulesFolder
 }
 
 func (m *ForgeModule) getArchiveURL() (string, error) {

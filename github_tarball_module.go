@@ -15,15 +15,14 @@ import (
 )
 
 type GithubTarballModule struct {
-	name          string
-	repoName      string
-	version       string
-	cacheFolder   string
-	installPath   string
-	folder        string
-	modulesFolder string
-	modulePath    string
-	processed     func()
+	name        string
+	repoName    string
+	version     string
+	cacheFolder string
+	installPath string
+	folder      string
+	modulePath  string
+	processed   func()
 }
 
 type GHModuleReleases []struct {
@@ -35,25 +34,17 @@ func (m *GithubTarballModule) Name() string {
 	return m.name
 }
 
-func (m *GithubTarballModule) SetModulesFolder(to string) {
-	m.modulesFolder = to
-}
-
 func (m *GithubTarballModule) Folder() string {
 	splitPath := strings.FieldsFunc(m.Name(), func(r rune) bool {
 		return r == '/' || r == '-'
 	})
 	folderName := splitPath[len(splitPath)-1]
 
-	return path.Join(m.modulesFolder, folderName)
+	return folderName
 }
 
 func (m *GithubTarballModule) Processed() {
 	m.processed()
-}
-
-func (m *GithubTarballModule) ModulesFolder() string {
-	return m.modulesFolder
 }
 
 func (m *GithubTarballModule) Hash() string {
@@ -62,8 +53,8 @@ func (m *GithubTarballModule) Hash() string {
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
-func (m *GithubTarballModule) IsUpToDate() bool {
-	_, err := os.Stat(m.Folder())
+func (m *GithubTarballModule) IsUpToDate(folder string) bool {
+	_, err := os.Stat(folder)
 	if err != nil {
 		return false
 	} else if m.version == "" {
@@ -71,7 +62,7 @@ func (m *GithubTarballModule) IsUpToDate() bool {
 		return true
 	}
 
-	versionFile := path.Join(m.Folder(), ".version")
+	versionFile := path.Join(folder, ".version")
 	version, err := ioutil.ReadFile(versionFile)
 	if err != nil {
 		// TODO error handling

@@ -12,19 +12,19 @@ import (
 )
 
 type PuppetFile struct {
-	*os.File    // Make that a io.Reader
-	wg          *sync.WaitGroup
-	filename    string
-	modulesPath string
+	*os.File // Make that a io.Reader
+	wg       *sync.WaitGroup
+	filename string
+	env      environment
 }
 
-func NewPuppetFile(puppetfile string, modulesPath string) *PuppetFile {
+func NewPuppetFile(puppetfile string, env environment) *PuppetFile {
 	f, err := os.Open(puppetfile)
 	if err != nil {
 		return nil
 	}
 
-	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile, modulesPath: modulesPath}
+	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile, env: env}
 }
 
 func (p *PuppetFile) Filename() string         { return p.filename }
@@ -176,15 +176,13 @@ type ErrMalformedPuppetfile struct{ s string }
 
 func (e ErrMalformedPuppetfile) Error() string { return e.s }
 
-func (p *PuppetFile) Process(modules chan<- PuppetModule) error {
+func (p *PuppetFile) Process(drs chan<- downloadRequest) error {
 	parsedModules, opts, err := p.parse(bufio.NewScanner(p.File))
 	if err != nil {
 		return ErrMalformedPuppetfile{err.Error()}
 	}
 
-	// Default to the variable given in constructor
-	modulesDir := p.modulesPath
-
+	modulesDir := path.Join(p.env.Basedir, "modules")
 	// The moduledir option in the Puppetfile overrides the default
 	if _, ok := opts["moduledir"]; ok {
 		modulesDir = opts["moduledir"]
@@ -194,9 +192,10 @@ func (p *PuppetFile) Process(modules chan<- PuppetModule) error {
 	}
 
 	for _, module := range parsedModules {
-		module.SetModulesFolder(modulesDir)
+		done := make(chan bool)
+		dr := downloadRequest{m: module, env: p.env, done: done}
 		p.wg.Add(1)
-		modules <- module
+		drs <- dr
 	}
 
 	p.wg.Wait()
