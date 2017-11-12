@@ -34,6 +34,10 @@ func (m *GithubTarballModule) Name() string {
 	return m.name
 }
 
+func (m *GithubTarballModule) InstallPath() string {
+	return m.installPath
+}
+
 func (m *GithubTarballModule) Folder() string {
 	splitPath := strings.FieldsFunc(m.Name(), func(r rune) bool {
 		return r == '/' || r == '-'

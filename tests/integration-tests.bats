@@ -30,7 +30,7 @@ setup() {
 
 @test "should support install_path parameter" {
   run r10k-go install --puppetfile test-fixtures/Puppetfile-installpath
-  [ -d test_install_path ]
+  [ -d test-fixtures/test_install_path ]
   [ "$status" -eq 0 ]
 }
 

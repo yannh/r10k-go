@@ -24,6 +24,9 @@ type GitModule struct {
 
 func (m *GitModule) Name() string { return m.name }
 func (m *GitModule) Processed()   { m.processed() }
+func (m *GitModule) InstallPath() string {
+	return m.installPath
+}
 
 func (m *GitModule) IsUpToDate(folder string) bool {
 	if _, err := os.Stat(folder); err != nil {

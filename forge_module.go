@@ -26,6 +26,10 @@ func (m *ForgeModule) Processed() {
 	m.processed()
 }
 
+func (m *ForgeModule) InstallPath() string {
+	return ""
+}
+
 func (m *ForgeModule) Folder() string {
 	splitPath := strings.FieldsFunc(m.Name(), func(r rune) bool {
 		return r == '/' || r == '-'

@@ -21,6 +21,7 @@ type PuppetModule interface {
 	Folder() string
 	Hash() string
 	Processed()
+	InstallPath() string
 }
 
 type DownloadError struct {
@@ -75,6 +76,10 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 		cache.LockModule(dr.m.Hash())
 
 		modulesFolder := path.Join(dr.env.Basedir, "modules")
+		if dr.m.InstallPath() != "" {
+			modulesFolder = path.Join(dr.env.Basedir, dr.m.InstallPath())
+		}
+
 		to := path.Join(modulesFolder, dr.m.Folder())
 
 		dres := downloadModule(dr.m, to, cache)
