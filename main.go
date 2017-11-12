@@ -32,18 +32,6 @@ type DownloadResult struct {
 	skipped bool
 }
 
-type source struct {
-	Basedir string
-	Prefix  string
-	Remote  string
-}
-
-type environment struct {
-	source
-	branch        string
-	modulesFolder string
-}
-
 type downloadRequest struct {
 	m    PuppetModule
 	env  environment
@@ -84,10 +72,7 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 	for dr := range drs {
 		cache.LockModule(dr.m.Hash())
 
-		modulesFolder := path.Join(dr.env.Basedir, dr.env.branch, "modules")
-		if dr.env.modulesFolder != "" {
-			modulesFolder = path.Join(dr.env.Basedir, dr.env.branch, dr.env.modulesFolder)
-		}
+		modulesFolder := path.Join(dr.env.Basedir, dr.env.branch, dr.env.modulesFolder)
 		if dr.m.InstallPath() != "" {
 			modulesFolder = path.Join(dr.env.Basedir, dr.env.branch, dr.m.InstallPath())
 		}
@@ -138,7 +123,6 @@ func main() {
 	var cache *Cache
 
 	cliOpts := cli()
-
 	if cliOpts["check"] != false {
 		puppetfile := "./Puppetfile"
 		pf := NewPuppetFile(puppetfile, environment{})
