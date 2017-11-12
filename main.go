@@ -28,7 +28,6 @@ type PuppetModule interface {
 type moduleFile interface {
 	Filename() string
 	Process(modules chan<- PuppetModule) error
-	Close()
 }
 
 type DownloadError struct {
@@ -77,7 +76,10 @@ func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool,
 				if mf := NewMetadataFile(path.Join(m.Folder(), "metadata.json"), m.ModulesFolder()); mf != nil {
 					wg.Add(1)
 					go func() {
-						processModuleFile(mf, modules)
+						if err := mf.Process(modules); err != nil {
+							log.Printf("failed parsing %s: %v\n", mf.Filename(), err)
+						}
+
 						mf.Close()
 						wg.Done()
 					}()
@@ -97,16 +99,6 @@ func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool,
 	}
 
 	errorsCount <- errors
-}
-
-func processModuleFile(mf moduleFile, modules chan PuppetModule) {
-	if err := mf.Process(modules); err != nil {
-		if serr, ok := err.(ErrMalformedPuppetfile); ok {
-			log.Fatal(serr)
-		} else {
-			log.Printf("failed parsing %s: %v\n", mf.Filename(), err)
-		}
-	}
 }
 
 func main() {
@@ -206,8 +198,15 @@ func main() {
 
 		for _, pf := range puppetFiles {
 			wg.Add(1)
-			go func(pf moduleFile, modules chan PuppetModule) {
-				processModuleFile(pf, modules)
+			go func(pf *PuppetFile, modules chan PuppetModule) {
+				if err := pf.Process(modules); err != nil {
+					if serr, ok := err.(ErrMalformedPuppetfile); ok {
+						log.Fatal(serr)
+					} else {
+						log.Printf("failed parsing %s: %v\n", pf.Filename(), err)
+					}
+				}
+
 				pf.Close()
 				wg.Done()
 			}(pf, modules)
