@@ -2,7 +2,7 @@
 
 .PHONY: all go-deps unit-tests test install integration-tests release
 
-all: clean go-deps test install integration-tests
+all: clean go-deps test install integration-tests release
 
 clean:
 	rm -rf .cache modules r10k-go environments test_install_path
