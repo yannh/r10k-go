@@ -10,7 +10,10 @@ It tries to improve on https://github.com/xorpaul/g10k/ by limitting the number 
 r10k-go
 
 Usage:
-  r10k-go install [--modulePath=<PATH>] [--no-deps] [--puppetfile=<PUPPETFILE>] [--workers=<n>]
+  r10k-go puppetfile install [--moduledir=<PATH>] [--no-deps] [--puppetfile=<PUPPETFILE>] [--workers=<n>]
+  r10k-go puppetfile check [--moduledir=<PATH>] [--no-deps] [--puppetfile=<PUPPETFILE>] [--workers=<n>]
+  r10k-go version
+  r10k-go deploy environment <env>... [--workers=<n>]
   r10k-go -h | --help
   r10k-go --version
 
@@ -37,7 +40,8 @@ mod 'puppetlabs-apt',
   :git => "git://github.com/puppetlabs/puppetlabs-apt.git"
 
 mod 'puppetlabs-stdlib',
-  :git => "git://github.com/puppetlabs/puppetlabs-stdlib.git"
+  :git => "git://github.com/puppetlabs/puppetlabs-stdlib.git",
+  :install_path => "test_install_path"
 
 mod 'puppetlabs-apache', '0.6.0',
   :github_tarball => 'puppetlabs/puppetlabs-apache'
@@ -47,8 +51,10 @@ A cache is maintained in .cache, git worktrees are used to deploy git repository
 
 ## Not yet implemented
 
-* Complex version requirements for forge modules (can only give a specific version)
-* Support for r10k configuration files. Complex environment management is being actively worked on.
+* Complex version requirements for forge modules (can only give a specific version) - although only librarian respects this.
+* r10k deploy display
+* r10k deploy module
+* r10k puppetfile purge
 * SVN or local sources
 * probably a lot more...
 
@@ -60,7 +66,7 @@ Given a correctly setup Go environment, you can go get r10k-go and use the makef
 ~/$ go get github.com/yannh/r10k-go
 ~/$ cd ~/go/src/github.com/yannh/r10k-go/
 ~/go/src/github.com/yannh/r10k-go$ make
-rm -rf .cache modules r10k-go environment
+rm -rf .cache modules r10k-go environments test_install_path
 go get -t ./...
 go test -v ./...
 === RUN   TestParseModuleGit
@@ -68,9 +74,16 @@ go test -v ./...
 === RUN   TestParse
 --- PASS: TestParse (0.00s)
 PASS
-ok  	github.com/yannh/r10k-go	0.007s
+ok      github.com/yannh/r10k-go        0.005s
+?       github.com/yannh/r10k-go/git    [no test files]
+?       github.com/yannh/r10k-go/gzip   [no test files]
 go vet -v ./...
-go install ./...
-~/go/src/github.com/yannh/r10k-go$ ls ~/go/bin/r10k-go
-/home/yann/go/bin/r10k-go
+go install -race ./...
+bats tests/integration-tests.bats
+ ✓ invocation with a nonexistent puppetfile prints an error
+ ✓ invocation with test puppetfile succeeds
+ ✓ should fail on invalid Puppetfile
+ ✓ should support install_path parameter
+
+4 tests, 0 failures
 ```

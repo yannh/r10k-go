@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"fmt"
 	"github.com/yannh/r10k-go/git"
 	"log"
 	"os"
@@ -136,6 +138,22 @@ func main() {
 	var cache *Cache
 
 	cliOpts := cli()
+
+	if cliOpts["check"] != false {
+		puppetfile := "./Puppetfile"
+		pf := NewPuppetFile(puppetfile, environment{})
+		if _, _, err := pf.parse(bufio.NewScanner(pf.File)); err != nil {
+			log.Fatalf("failed parsing %s: %v", puppetfile, err)
+		} else {
+			log.Printf("file parsed correctly: %s", puppetfile)
+			os.Exit(0)
+		}
+	}
+
+	if cliOpts["version"] != false {
+		fmt.Println("0.0.1")
+		os.Exit(0)
+	}
 
 	if cliOpts["--workers"] == nil {
 		numWorkers = 4
