@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strings"
 )
 
 type GithubTarballModule struct {
@@ -35,15 +34,6 @@ func (m *GithubTarballModule) Name() string {
 
 func (m *GithubTarballModule) InstallPath() string {
 	return m.installPath
-}
-
-func (m *GithubTarballModule) Folder() string {
-	splitPath := strings.FieldsFunc(m.Name(), func(r rune) bool {
-		return r == '/' || r == '-'
-	})
-	folderName := splitPath[len(splitPath)-1]
-
-	return folderName
 }
 
 func (m *GithubTarballModule) Hash() string {

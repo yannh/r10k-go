@@ -37,7 +37,7 @@ func (m *GitModule) IsUpToDate(folder string) bool {
 	}
 
 	if m.want.Ref != "" {
-		commit, err := m.currentCommit()
+		commit, err := m.currentCommit(folder)
 		if err != nil {
 			return false
 		}
@@ -65,20 +65,12 @@ func (m *GitModule) Hash() string {
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
-func (m *GitModule) Folder() string {
-	splitPath := strings.FieldsFunc(m.Name(), func(r rune) bool {
-		return r == '/' || r == '-'
-	})
-
-	return splitPath[len(splitPath)-1]
-}
-
-func (m *GitModule) currentCommit() (string, error) {
+func (m *GitModule) currentCommit(folder string) (string, error) {
 	var gitFile, headFile *os.File
 	var err error
 	worktreeFolder := ""
 
-	if gitFile, err = os.Open(path.Join(m.Folder(), ".git")); err != nil {
+	if gitFile, err = os.Open(path.Join(folder, ".git")); err != nil {
 		return "", fmt.Errorf("Error getting current commit for %s", m.Name())
 	}
 

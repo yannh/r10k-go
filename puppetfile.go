@@ -27,8 +27,7 @@ func NewPuppetFile(puppetfile string, env environment) *PuppetFile {
 	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile, env: env}
 }
 
-func (p *PuppetFile) Filename() string { return p.filename }
-func (p *PuppetFile) Close()           { p.File.Close() }
+func (p *PuppetFile) Close() { p.File.Close() }
 
 func (p *PuppetFile) parseParameter(line string) string {
 	if strings.Contains(line, "=>") {

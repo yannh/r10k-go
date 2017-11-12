@@ -8,12 +8,14 @@ import (
 	"sync"
 )
 
+type dependency struct {
+	Name                string
+	Version_requirement string
+}
+
 type Metadata struct {
 	Name         string
-	Dependencies []struct {
-		Name                string
-		Version_requirement string
-	}
+	Dependencies []dependency
 }
 
 type MetadataFile struct {
@@ -35,7 +37,6 @@ func NewMetadataFile(metadataFile string, env environment) *MetadataFile {
 
 func (m *MetadataFile) moduleProcessedCallback() { m.wg.Done() }
 func (m *MetadataFile) Close()                   { m.File.Close() }
-func (m *MetadataFile) Filename() string         { return m.filename }
 
 func (m *MetadataFile) Process(drs chan<- downloadRequest) error {
 	var meta Metadata
@@ -53,7 +54,7 @@ func (m *MetadataFile) Process(drs chan<- downloadRequest) error {
 		m.wg.Add(1)
 		done := make(chan bool)
 
-		go func() {
+		go func(req dependency) {
 			drs <- downloadRequest{
 				m: &ForgeModule{
 					name: req.Name,
@@ -63,7 +64,7 @@ func (m *MetadataFile) Process(drs chan<- downloadRequest) error {
 			}
 			<-done
 			m.wg.Done()
-		}()
+		}(req)
 	}
 
 	m.wg.Wait()

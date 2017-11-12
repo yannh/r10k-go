@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"strings"
 )
 
 type ForgeModule struct {
@@ -23,14 +22,6 @@ type ForgeModule struct {
 
 func (m *ForgeModule) InstallPath() string {
 	return ""
-}
-
-func (m *ForgeModule) Folder() string {
-	splitPath := strings.FieldsFunc(m.Name(), func(r rune) bool {
-		return r == '/' || r == '-'
-	})
-
-	return splitPath[len(splitPath)-1]
 }
 
 func (m *ForgeModule) Hash() string {

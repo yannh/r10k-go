@@ -1,24 +1,21 @@
 package main
 
-// TODO Fix installpath
-// Pass a DownloadRequest to DownloadModules instead of Module: Module + Environment
-
 import (
 	"github.com/yannh/r10k-go/git"
 	"log"
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
 
 // ForgeModule, GitModule, GithubTarballModule, ....
 type PuppetModule interface {
-	IsUpToDate(string) bool
+	IsUpToDate(folder string) bool
 	Name() string
-	Download(string, *Cache) *DownloadError
-	Folder() string
+	Download(to string, cache *Cache) *DownloadError
 	Hash() string
 	InstallPath() string
 }
@@ -50,13 +47,23 @@ type downloadRequest struct {
 	done chan bool
 }
 
+// If a module is called puppetlabs-stdlib, or puppetlabs/stdlib,
+// the target folder should be stdlib
+func folderFromModuleName(moduleName string) string {
+	splitPath := strings.FieldsFunc(moduleName, func(r rune) bool {
+		return r == '/' || r == '-'
+	})
+
+	return splitPath[len(splitPath)-1]
+}
+
 func downloadModule(m PuppetModule, to string, cache *Cache) DownloadResult {
 	if m.IsUpToDate(to) {
 		return DownloadResult{err: nil, skipped: true}
 	}
 
 	if err := os.RemoveAll(to); err != nil {
-		log.Fatalf("Error removing folder: %s", m.Folder())
+		log.Fatalf("Error removing folder: %s", to)
 	}
 
 	if derr := m.Download(to, cache); derr != nil {
@@ -79,7 +86,7 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 			modulesFolder = path.Join(dr.env.Basedir, dr.m.InstallPath())
 		}
 
-		to := path.Join(modulesFolder, dr.m.Folder())
+		to := path.Join(modulesFolder, folderFromModuleName(dr.m.Name()))
 
 		dres := downloadModule(dr.m, to, cache)
 		for i := 1; dres.err != nil && dres.err.retryable && i < maxTries; i++ {
@@ -90,11 +97,12 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 
 		if dres.err == nil {
 			if downloadDeps && !dres.skipped {
-				if mf := NewMetadataFile(path.Join(to, "metadata.json"), dr.env); mf != nil {
+				metadataFilename := path.Join(to, "metadata.json")
+				if mf := NewMetadataFile(metadataFilename, dr.env); mf != nil {
 					wg.Add(1)
 					go func() {
 						if err := mf.Process(drs); err != nil {
-							log.Printf("failed parsing %s: %v\n", mf.Filename(), err)
+							log.Printf("failed parsing %s: %v\n", metadataFilename, err)
 						}
 
 						mf.Close()
@@ -222,7 +230,7 @@ func main() {
 					if serr, ok := err.(ErrMalformedPuppetfile); ok {
 						log.Fatal(serr)
 					} else {
-						log.Printf("failed parsing %s: %v\n", pf.Filename(), err)
+						log.Printf("failed parsing %s: %v\n", pf.filename, err)
 					}
 				}
 
