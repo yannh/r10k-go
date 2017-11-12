@@ -22,7 +22,6 @@ type GithubTarballModule struct {
 	installPath string
 	folder      string
 	modulePath  string
-	processed   func()
 }
 
 type GHModuleReleases []struct {
@@ -45,10 +44,6 @@ func (m *GithubTarballModule) Folder() string {
 	folderName := splitPath[len(splitPath)-1]
 
 	return folderName
-}
-
-func (m *GithubTarballModule) Processed() {
-	m.processed()
 }
 
 func (m *GithubTarballModule) Hash() string {

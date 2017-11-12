@@ -52,14 +52,18 @@ func (m *MetadataFile) Process(drs chan<- downloadRequest) error {
 	for _, req := range meta.Dependencies {
 		m.wg.Add(1)
 		done := make(chan bool)
-		drs <- downloadRequest{
-			m: &ForgeModule{
-				name:      req.Name,
-				processed: m.moduleProcessedCallback,
-			},
-			env:  m.env,
-			done: done,
-		}
+
+		go func() {
+			drs <- downloadRequest{
+				m: &ForgeModule{
+					name: req.Name,
+				},
+				env:  m.env,
+				done: done,
+			}
+			<-done
+			m.wg.Done()
+		}()
 	}
 
 	m.wg.Wait()

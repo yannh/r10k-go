@@ -20,7 +20,6 @@ type PuppetModule interface {
 	Download(string, *Cache) *DownloadError
 	Folder() string
 	Hash() string
-	Processed()
 	InstallPath() string
 }
 
@@ -112,7 +111,7 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 			errors++
 		}
 
-		dr.m.Processed()
+		dr.done <- true
 		cache.UnlockModule(dr.m.Hash())
 	}
 

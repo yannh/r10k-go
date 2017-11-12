@@ -19,11 +19,6 @@ type ForgeModule struct {
 	version     string
 	path        string
 	cacheFolder string
-	processed   func()
-}
-
-func (m *ForgeModule) Processed() {
-	m.processed()
 }
 
 func (m *ForgeModule) InstallPath() string {

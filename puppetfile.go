@@ -27,9 +27,8 @@ func NewPuppetFile(puppetfile string, env environment) *PuppetFile {
 	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile, env: env}
 }
 
-func (p *PuppetFile) Filename() string         { return p.filename }
-func (p *PuppetFile) Close()                   { p.File.Close() }
-func (p *PuppetFile) moduleProcessedCallback() { p.wg.Done() }
+func (p *PuppetFile) Filename() string { return p.filename }
+func (p *PuppetFile) Close()           { p.File.Close() }
 
 func (p *PuppetFile) parseParameter(line string) string {
 	if strings.Contains(line, "=>") {
@@ -97,7 +96,6 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 			name:        name,
 			repoURL:     repoURL,
 			installPath: installPath,
-			processed:   p.moduleProcessedCallback,
 			want: git.Ref{
 				Ref:    ref,
 				Tag:    tag,
@@ -106,17 +104,15 @@ func (p *PuppetFile) parseModule(line string) (PuppetModule, error) {
 
 	case moduleType == "github_tarball":
 		return &GithubTarballModule{
-			name:      name,
-			repoName:  repoName,
-			version:   version,
-			processed: p.moduleProcessedCallback,
+			name:     name,
+			repoName: repoName,
+			version:  version,
 		}, nil
 
 	default:
 		return &ForgeModule{
-			name:      name,
-			version:   version,
-			processed: p.moduleProcessedCallback,
+			name:    name,
+			version: version,
 		}, nil
 	}
 }
@@ -195,7 +191,11 @@ func (p *PuppetFile) Process(drs chan<- downloadRequest) error {
 		done := make(chan bool)
 		dr := downloadRequest{m: module, env: p.env, done: done}
 		p.wg.Add(1)
-		drs <- dr
+		go func() {
+			drs <- dr
+			<-dr.done
+			p.wg.Done()
+		}()
 	}
 
 	p.wg.Wait()

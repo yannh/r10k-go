@@ -18,12 +18,10 @@ type GitModule struct {
 	installPath string
 	cacheFolder string
 	folder      string
-	processed   func()
 	want        git.Ref
 }
 
 func (m *GitModule) Name() string { return m.name }
-func (m *GitModule) Processed()   { m.processed() }
 func (m *GitModule) InstallPath() string {
 	return m.installPath
 }
