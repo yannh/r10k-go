@@ -144,20 +144,20 @@ func (m *GithubTarballModule) downloadURL() (string, error) {
 	return gr[index].Tarball_url, nil
 }
 
-func (m *GithubTarballModule) Download(to string, cache *Cache) DownloadError {
+func (m *GithubTarballModule) Download(to string, cache *Cache) *DownloadError {
 	var err error
 	var url string
 
 	m.cacheFolder = path.Join(cache.Folder, m.Hash())
 
 	if url, err = m.downloadURL(); err != nil {
-		return DownloadError{err, true}
+		return &DownloadError{err, true}
 	}
 
 	if _, err = os.Stat(path.Join(m.cacheFolder, m.version+".tar.gz")); err != nil {
 		forgeArchive, err := http.Get(url)
 		if err != nil {
-			return DownloadError{fmt.Errorf("Failed retrieving %s", url), true}
+			return &DownloadError{fmt.Errorf("Failed retrieving %s", url), true}
 		}
 		defer forgeArchive.Body.Close()
 
@@ -166,22 +166,22 @@ func (m *GithubTarballModule) Download(to string, cache *Cache) DownloadError {
 
 	r, err := os.Open(path.Join(m.cacheFolder, m.version+".tar.gz"))
 	if err != nil {
-		return DownloadError{err, false}
+		return &DownloadError{err, false}
 	}
 
 	defer r.Close()
 
 	if err = gzip.Extract(r, to); err != nil {
-		return DownloadError{err, false}
+		return &DownloadError{err, false}
 	}
 
 	versionFile := path.Join(to, ".version")
 	r, err = os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return DownloadError{fmt.Errorf("Failed creating file %s", versionFile), false}
+		return &DownloadError{fmt.Errorf("Failed creating file %s", versionFile), false}
 	}
 	defer r.Close()
 	r.WriteString(m.version)
 
-	return DownloadError{nil, false}
+	return nil
 }

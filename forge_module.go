@@ -154,7 +154,7 @@ func (m *ForgeModule) getArchiveURL() (string, error) {
 	return mr.Results[index].File_uri, nil
 }
 
-func (m *ForgeModule) Download(to string, cache *Cache) DownloadError {
+func (m *ForgeModule) Download(to string, cache *Cache) *DownloadError {
 	var err error
 	var url string
 
@@ -162,37 +162,37 @@ func (m *ForgeModule) Download(to string, cache *Cache) DownloadError {
 
 	forgeURL := "https://forgeapi.puppetlabs.com:443/"
 	if url, err = m.getArchiveURL(); err != nil {
-		return DownloadError{err, true}
+		return &DownloadError{err, true}
 	}
 
 	if _, err = os.Stat(path.Join(m.cacheFolder, m.version+".tar.gz")); err != nil {
 		forgeArchive, err := http.Get(forgeURL + url)
 		if err != nil {
-			return DownloadError{fmt.Errorf("could not retrieve %s", forgeURL+url), true}
+			return &DownloadError{fmt.Errorf("could not retrieve %s", forgeURL+url), true}
 		}
 		defer forgeArchive.Body.Close()
 
 		if err := m.downloadToCache(forgeArchive.Body); err != nil {
-			return DownloadError{fmt.Errorf("could not retrieve %s", forgeURL+url), true}
+			return &DownloadError{fmt.Errorf("could not retrieve %s", forgeURL+url), true}
 		}
 	}
 	r, err := os.Open(path.Join(m.cacheFolder, m.version+".tar.gz"))
 	if err != nil {
-		return DownloadError{fmt.Errorf("could not write to %s", path.Join(m.cacheFolder, m.version+".tar.gz")), false}
+		return &DownloadError{fmt.Errorf("could not write to %s", path.Join(m.cacheFolder, m.version+".tar.gz")), false}
 	}
 	defer r.Close()
 
 	if err = gzip.Extract(r, to); err != nil {
-		return DownloadError{err, true}
+		return &DownloadError{err, true}
 	}
 
 	versionFile := path.Join(to, ".version")
 	f, err := os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return DownloadError{fmt.Errorf("could not create file %s", versionFile), false}
+		return &DownloadError{fmt.Errorf("could not create file %s", versionFile), false}
 	}
 	defer f.Close()
 	f.WriteString(m.version)
 
-	return DownloadError{nil, false}
+	return nil
 }

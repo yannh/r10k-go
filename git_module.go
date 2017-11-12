@@ -139,18 +139,18 @@ func (m *GitModule) updateCache() error {
 	return nil
 }
 
-func (m *GitModule) Download(to string, cache *Cache) DownloadError {
+func (m *GitModule) Download(to string, cache *Cache) *DownloadError {
 	var err error
 
 	m.cacheFolder = path.Join(cache.Folder, m.Hash())
 
 	if err = m.updateCache(); err != nil {
-		return DownloadError{error: fmt.Errorf("failed updating cache: %v", err), retryable: true}
+		return &DownloadError{error: fmt.Errorf("failed updating cache: %v", err), retryable: true}
 	}
 
 	if err = git.WorktreeAdd(m.cacheFolder, m.want, to); err != nil {
-		return DownloadError{error: fmt.Errorf("failed creating subtree: %v", err), retryable: true}
+		return &DownloadError{error: fmt.Errorf("failed creating subtree: %v", err), retryable: true}
 	}
 
-	return DownloadError{error: nil, retryable: false}
+	return nil
 }

@@ -1,7 +1,6 @@
 package main
 
 // TODO Fix installpath
-// TODO ParseDownloadREsults is a mess, nedds simplifying
 
 import (
 	"github.com/yannh/r10k-go/git"
@@ -17,7 +16,7 @@ import (
 type PuppetModule interface {
 	IsUpToDate() bool
 	Name() string
-	Download(string, *Cache) DownloadError
+	Download(string, *Cache) *DownloadError
 	Folder() string
 	SetModulesFolder(to string)
 	ModulesFolder() string
@@ -38,24 +37,24 @@ type DownloadError struct {
 }
 
 type DownloadResult struct {
-	err     DownloadError
+	err     *DownloadError
 	skipped bool
 }
 
 func downloadModule(m PuppetModule, cache *Cache) DownloadResult {
 	if m.IsUpToDate() {
-		return DownloadResult{err: DownloadError{nil, false}, skipped: true}
+		return DownloadResult{err: nil, skipped: true}
 	}
 
 	if err := os.RemoveAll(m.Folder()); err != nil {
 		log.Fatalf("Error removing folder: %s", m.Folder())
 	}
 
-	if derr := m.Download(m.Folder(), cache); derr.error != nil {
+	if derr := m.Download(m.Folder(), cache); derr != nil {
 		return DownloadResult{err: derr, skipped: false}
 	}
 
-	return DownloadResult{err: DownloadError{nil, false}, skipped: false}
+	return DownloadResult{err: nil, skipped: false}
 }
 
 func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool, wg *sync.WaitGroup, errorsCount chan<- int) {
@@ -67,13 +66,13 @@ func downloadModules(modules chan PuppetModule, cache *Cache, downloadDeps bool,
 		cache.LockModule(m.Hash())
 
 		dres := downloadModule(m, cache)
-		for i := 1; dres.err.error != nil && dres.err.retryable && i < maxTries; i++ {
+		for i := 1; dres.err != nil && dres.err.retryable && i < maxTries; i++ {
 			log.Printf("failed downloading %s: %v... Retrying\n", m.Name(), dres.err)
 			time.Sleep(retryDelay)
 			dres = downloadModule(m, cache)
 		}
 
-		if dres.err.error == nil {
+		if dres.err == nil {
 			if downloadDeps {
 				if mf := NewMetadataFile(path.Join(m.Folder(), "metadata.json"), m.ModulesFolder()); mf != nil {
 					wg.Add(1)
