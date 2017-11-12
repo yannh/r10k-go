@@ -38,7 +38,8 @@ type source struct {
 
 type environment struct {
 	source
-	branch string
+	branch        string
+	modulesFolder string
 }
 
 type downloadRequest struct {
@@ -81,9 +82,12 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 	for dr := range drs {
 		cache.LockModule(dr.m.Hash())
 
-		modulesFolder := path.Join(dr.env.Basedir, "modules")
+		modulesFolder := path.Join(dr.env.Basedir, dr.env.branch, "modules")
+		if dr.env.modulesFolder != "" {
+			modulesFolder = path.Join(dr.env.Basedir, dr.env.branch, dr.env.modulesFolder)
+		}
 		if dr.m.InstallPath() != "" {
-			modulesFolder = path.Join(dr.env.Basedir, dr.m.InstallPath())
+			modulesFolder = path.Join(dr.env.Basedir, dr.env.branch, dr.m.InstallPath())
 		}
 
 		to := path.Join(modulesFolder, folderFromModuleName(dr.m.Name()))
@@ -115,7 +119,7 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 				log.Println("Downloaded " + dr.m.Name() + " to " + to)
 			}
 		} else {
-			log.Printf("failed downloading %s: %v. Giving up!\n", dr.m.Name(), dres.err)
+			log.Printf("failed downloading %s to %s: %v. Giving up!\n", dr.m.Name(), to, dres.err)
 			errors++
 		}
 
@@ -165,30 +169,34 @@ func main() {
 		// Find in which source the environment is
 		// TODO: render deterministic
 		for _, envName := range cliOpts["<env>"].([]string) {
-			environmentSource := ""
+			sourceName := ""
 
-			for sourceName, source := range r10kConfig.Sources {
+			for name, source := range r10kConfig.Sources {
 				if git.RepoHasBranch(source.Remote, envName) {
-					environmentSource = sourceName
+					sourceName = name
 					s = source
 					break
 				}
 			}
 
-			sourceCacheFolder := path.Join(cacheDir, environmentSource)
+			sourceCacheFolder := path.Join(cacheDir, sourceName)
 			// Clone if environment doesnt exist, fetch otherwise
 			if err := git.RevParse(sourceCacheFolder); err != nil {
-				if err := git.Clone(r10kConfig.Sources[environmentSource].Remote, git.Ref{Branch: envName}, sourceCacheFolder); err != nil {
+				if err := git.Clone(r10kConfig.Sources[sourceName].Remote, git.Ref{Branch: envName}, sourceCacheFolder); err != nil {
 					log.Fatalf("failed downloading environment: %v", err)
 				}
 			} else {
 				git.Fetch(sourceCacheFolder)
 			}
 
-			git.WorktreeAdd(sourceCacheFolder, git.Ref{Branch: envName}, path.Join(r10kConfig.Sources[environmentSource].Basedir, envName))
-			puppetfile := path.Join(r10kConfig.Sources[environmentSource].Basedir, envName, "Puppetfile")
+			git.WorktreeAdd(sourceCacheFolder, git.Ref{Branch: envName}, path.Join(r10kConfig.Sources[sourceName].Basedir, envName))
+			puppetfile := path.Join(r10kConfig.Sources[sourceName].Basedir, envName, "Puppetfile")
 
-			pf := NewPuppetFile(puppetfile, environment{s, envName})
+			moduledir := "modules"
+			if cliOpts["--moduledir"] != nil {
+				moduledir = cliOpts["--moduledir"].(string)
+			}
+			pf := NewPuppetFile(puppetfile, environment{s, envName, moduledir})
 			if pf == nil {
 				log.Fatalf("no such file or directory %s", puppetfile)
 			}
@@ -205,7 +213,11 @@ func main() {
 			puppetfile = cliOpts["--puppetfile"].(string)
 		}
 
-		pf := NewPuppetFile(puppetfile, environment{source{Basedir: path.Dir(puppetfile), Prefix: "", Remote: ""}, ""})
+		moduledir := "modules"
+		if cliOpts["--moduledir"] != nil {
+			moduledir = cliOpts["--moduledir"].(string)
+		}
+		pf := NewPuppetFile(puppetfile, environment{source{Basedir: path.Dir(puppetfile), Prefix: "", Remote: ""}, "", moduledir})
 		if pf == nil {
 			log.Fatalf("no such file or directory %s", puppetfile)
 		}
