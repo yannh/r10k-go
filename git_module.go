@@ -121,7 +121,7 @@ func (m *GitModule) updateCache() error {
 func (m *GitModule) Download(to string, cache *Cache) *DownloadError {
 	var err error
 
-	m.cacheFolder = path.Join(cache.Folder, m.Hash())
+	m.cacheFolder = path.Join(cache.folder, m.Hash())
 
 	if err = m.updateCache(); err != nil {
 		return &DownloadError{error: fmt.Errorf("failed updating cache: %v", err), retryable: true}

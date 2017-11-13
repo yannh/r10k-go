@@ -9,13 +9,13 @@ import (
 )
 
 type dependency struct {
-	Name                string
-	Version_requirement string
+	name               string
+	versionRequirement string
 }
 
 type Metadata struct {
-	Name         string
-	Dependencies []dependency
+	name         string
+	dependencies []dependency
 }
 
 type MetadataFile struct {
@@ -50,14 +50,14 @@ func (m *MetadataFile) Process(drs chan<- downloadRequest) error {
 		return fmt.Errorf("JSON file malformed: %v", err)
 	}
 
-	for _, req := range meta.Dependencies {
+	for _, req := range meta.dependencies {
 		m.wg.Add(1)
 		done := make(chan bool)
 
 		go func(req dependency) {
 			drs <- downloadRequest{
 				m: &ForgeModule{
-					name: req.Name,
+					name: req.name,
 				},
 				env:  m.env,
 				done: done,

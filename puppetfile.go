@@ -177,7 +177,7 @@ func (p *PuppetFile) Process(drs chan<- downloadRequest) error {
 		return ErrMalformedPuppetfile{err.Error()}
 	}
 
-	modulesDir := path.Join(p.env.Basedir, "modules")
+	modulesDir := path.Join(p.env.basedir, "modules")
 	// The moduledir option in the Puppetfile overrides the default
 	if _, ok := opts["moduledir"]; ok {
 		modulesDir = opts["moduledir"]

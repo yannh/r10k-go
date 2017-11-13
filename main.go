@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// ForgeModule, GitModule, GithubTarballModule, ....
+// PuppetModule is implemented by ForgeModule, GitModule, GithubTarballModule, ....
 type PuppetModule interface {
 	IsUpToDate(folder string) bool
 	Name() string
@@ -72,9 +72,9 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 	for dr := range drs {
 		cache.LockModule(dr.m.Hash())
 
-		modulesFolder := path.Join(dr.env.Basedir, dr.env.branch, dr.env.modulesFolder)
+		modulesFolder := path.Join(dr.env.basedir, dr.env.branch, dr.env.modulesFolder)
 		if dr.m.InstallPath() != "" {
-			modulesFolder = path.Join(dr.env.Basedir, dr.env.branch, dr.m.InstallPath())
+			modulesFolder = path.Join(dr.env.basedir, dr.env.branch, dr.m.InstallPath())
 		}
 
 		to := path.Join(modulesFolder, folderFromModuleName(dr.m.Name()))
@@ -155,7 +155,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	if cliOpts["deploy"] == true {
+	if cliOpts["deploy"] == true && cliOpts["environment"] == true {
 		r10kFile := "r10k.yml"
 		r10kConfig, err := NewR10kConfig(r10kFile)
 		if err != nil {
@@ -174,7 +174,7 @@ func main() {
 			sourceName := ""
 
 			for name, source := range r10kConfig.Sources {
-				if git.RepoHasBranch(source.Remote, envName) {
+				if git.RepoHasBranch(source.remote, envName) {
 					sourceName = name
 					s = source
 					break
@@ -184,15 +184,15 @@ func main() {
 			sourceCacheFolder := path.Join(cacheDir, sourceName)
 			// Clone if environment doesnt exist, fetch otherwise
 			if err := git.RevParse(sourceCacheFolder); err != nil {
-				if err := git.Clone(r10kConfig.Sources[sourceName].Remote, git.Ref{Branch: envName}, sourceCacheFolder); err != nil {
+				if err := git.Clone(r10kConfig.Sources[sourceName].remote, git.Ref{Branch: envName}, sourceCacheFolder); err != nil {
 					log.Fatalf("failed downloading environment: %v", err)
 				}
 			} else {
 				git.Fetch(sourceCacheFolder)
 			}
 
-			git.WorktreeAdd(sourceCacheFolder, git.Ref{Branch: envName}, path.Join(r10kConfig.Sources[sourceName].Basedir, envName))
-			puppetfile := path.Join(r10kConfig.Sources[sourceName].Basedir, envName, "Puppetfile")
+			git.WorktreeAdd(sourceCacheFolder, git.Ref{Branch: envName}, path.Join(r10kConfig.Sources[sourceName].basedir, envName))
+			puppetfile := path.Join(r10kConfig.Sources[sourceName].basedir, envName, "Puppetfile")
 
 			moduledir := "modules"
 			if cliOpts["--moduledir"] != nil {
@@ -219,7 +219,7 @@ func main() {
 		if cliOpts["--moduledir"] != nil {
 			moduledir = cliOpts["--moduledir"].(string)
 		}
-		pf := NewPuppetFile(puppetfile, environment{source{Basedir: path.Dir(puppetfile), Prefix: "", Remote: ""}, "", moduledir})
+		pf := NewPuppetFile(puppetfile, environment{source{basedir: path.Dir(puppetfile), prefix: "", remote: ""}, "", moduledir})
 		if pf == nil {
 			log.Fatalf("no such file or directory %s", puppetfile)
 		}
@@ -227,7 +227,7 @@ func main() {
 		puppetFiles = append(puppetFiles, pf)
 	}
 
-	if cliOpts["install"] == true || cliOpts["deploy"] == true {
+	if cliOpts["install"] == true || (cliOpts["deploy"] == true && cliOpts["environment"] == true) {
 		drs := make(chan downloadRequest)
 
 		var wg sync.WaitGroup

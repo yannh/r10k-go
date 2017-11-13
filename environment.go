@@ -13,7 +13,7 @@ type environment struct {
 }
 
 func (e *environment) InstalledModules() []string {
-	folder := path.Join(e.Basedir, e.branch, e.modulesFolder)
+	folder := path.Join(e.basedir, e.branch, e.modulesFolder)
 
 	files, err := ioutil.ReadDir(folder)
 	if err != nil {

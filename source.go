@@ -7,13 +7,13 @@ import (
 )
 
 type source struct {
-	Basedir string
-	Prefix  string
-	Remote  string
+	basedir string
+	prefix  string
+	remote  string
 }
 
 func (s *source) deployedEnvironments() []string {
-	folder := path.Join(s.Basedir)
+	folder := path.Join(s.basedir)
 
 	files, err := ioutil.ReadDir(folder)
 	if err != nil {

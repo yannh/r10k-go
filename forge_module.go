@@ -36,8 +36,8 @@ func (m *ForgeModule) Name() string {
 
 type ModuleReleases struct {
 	Results []struct {
-		File_uri string
-		Version  string
+		FileURL string
+		Version string
 	}
 }
 
@@ -131,14 +131,14 @@ func (m *ForgeModule) getArchiveURL() (string, error) {
 		m.version = mr.Results[0].Version
 	}
 
-	return mr.Results[index].File_uri, nil
+	return mr.Results[index].FileURL, nil
 }
 
 func (m *ForgeModule) Download(to string, cache *Cache) *DownloadError {
 	var err error
 	var url string
 
-	m.cacheFolder = path.Join(cache.Folder, m.Hash())
+	m.cacheFolder = path.Join(cache.folder, m.Hash())
 
 	forgeURL := "https://forgeapi.puppetlabs.com:443/"
 	if url, err = m.getArchiveURL(); err != nil {
