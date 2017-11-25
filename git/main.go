@@ -60,7 +60,7 @@ func WorktreeAdd(directory string, ref Ref, to string) error {
 	var cmd *exec.Cmd
 	var cwd string
 
-	if !strings.HasPrefix(to, string(os.PathSeparator)) {
+	if !path.IsAbs(to) {
 		cwd, _ = os.Getwd()
 		to = path.Join(cwd, to)
 	}

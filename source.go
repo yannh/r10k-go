@@ -7,22 +7,23 @@ import (
 )
 
 type source struct {
-	basedir string
+	Basedir string
 	prefix  string
-	remote  string
+	Remote  string
 }
 
-func (s *source) deployedEnvironments() []string {
-	folder := path.Join(s.basedir)
+func (s *source) deployedEnvironments() []*environment {
+	folder := path.Join(s.Basedir)
 
 	files, err := ioutil.ReadDir(folder)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	envs := make([]string, 5)
+	envs := make([]*environment, 0)
+
 	for _, f := range files {
-		envs = append(envs, f.Name())
+		envs = append(envs, NewEnvironment(*s, f.Name(), "modules"))
 	}
 
 	return envs

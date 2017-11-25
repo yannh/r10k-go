@@ -65,16 +65,16 @@ func downloadModule(m PuppetModule, to string, cache *Cache) DownloadResult {
 }
 
 func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, wg *sync.WaitGroup, errorsCount chan<- int) {
-	maxTries := 3
+	maxTries := 1
 	retryDelay := 5 * time.Second
 	errors := 0
 
 	for dr := range drs {
 		cache.LockModule(dr.m.Hash())
 
-		modulesFolder := path.Join(dr.env.basedir, dr.env.branch, dr.env.modulesFolder)
+		modulesFolder := path.Join(dr.env.Basedir, dr.env.branch, dr.env.modulesFolder)
 		if dr.m.InstallPath() != "" {
-			modulesFolder = path.Join(dr.env.basedir, dr.env.branch, dr.m.InstallPath())
+			modulesFolder = path.Join(dr.env.Basedir, dr.env.branch, dr.m.InstallPath())
 		}
 
 		to := path.Join(modulesFolder, folderFromModuleName(dr.m.Name()))
@@ -155,17 +155,17 @@ func main() {
 		log.Fatal(err)
 	}
 
+	r10kFile := "r10k.yml"
+	r10kConfig, err := NewR10kConfig(r10kFile)
+	if err != nil {
+		log.Fatalf("Error parsing r10k configuration file %s: %v", r10kFile, err)
+	}
+
+	if r10kConfig.Cachedir != "" {
+		cacheDir = r10kConfig.Cachedir
+	}
+
 	if cliOpts["deploy"] == true && cliOpts["environment"] == true {
-		r10kFile := "r10k.yml"
-		r10kConfig, err := NewR10kConfig(r10kFile)
-		if err != nil {
-			log.Fatalf("Error parsing r10k configuration file %s: %v", r10kFile, err)
-		}
-
-		if r10kConfig.Cachedir != "" {
-			cacheDir = r10kConfig.Cachedir
-		}
-
 		var s source
 
 		// Find in which source the environment is
@@ -174,7 +174,7 @@ func main() {
 			sourceName := ""
 
 			for name, source := range r10kConfig.Sources {
-				if git.RepoHasBranch(source.remote, envName) {
+				if git.RepoHasBranch(source.Remote, envName) {
 					sourceName = name
 					s = source
 					break
@@ -182,17 +182,19 @@ func main() {
 			}
 
 			sourceCacheFolder := path.Join(cacheDir, sourceName)
+			log.Printf("Cache folder is %v", sourceCacheFolder)
 			// Clone if environment doesnt exist, fetch otherwise
 			if err := git.RevParse(sourceCacheFolder); err != nil {
-				if err := git.Clone(r10kConfig.Sources[sourceName].remote, git.Ref{Branch: envName}, sourceCacheFolder); err != nil {
+				log.Printf("%v", r10kConfig.Sources["enviro1"])
+				if err := git.Clone(r10kConfig.Sources[sourceName].Remote, git.Ref{Branch: envName}, sourceCacheFolder); err != nil {
 					log.Fatalf("failed downloading environment: %v", err)
 				}
 			} else {
 				git.Fetch(sourceCacheFolder)
 			}
 
-			git.WorktreeAdd(sourceCacheFolder, git.Ref{Branch: envName}, path.Join(r10kConfig.Sources[sourceName].basedir, envName))
-			puppetfile := path.Join(r10kConfig.Sources[sourceName].basedir, envName, "Puppetfile")
+			git.Clone(sourceCacheFolder, git.Ref{Branch: envName}, path.Join(r10kConfig.Sources[sourceName].Basedir, envName))
+			puppetfile := path.Join(r10kConfig.Sources[sourceName].Basedir, envName, "Puppetfile")
 
 			moduledir := "modules"
 			if cliOpts["--moduledir"] != nil {
@@ -219,12 +221,44 @@ func main() {
 		if cliOpts["--moduledir"] != nil {
 			moduledir = cliOpts["--moduledir"].(string)
 		}
-		pf := NewPuppetFile(puppetfile, environment{source{basedir: path.Dir(puppetfile), prefix: "", remote: ""}, "", moduledir})
+		pf := NewPuppetFile(puppetfile, environment{source{Basedir: path.Dir(puppetfile), prefix: "", Remote: ""}, "", moduledir})
 		if pf == nil {
 			log.Fatalf("no such file or directory %s", puppetfile)
 		}
 
 		puppetFiles = append(puppetFiles, pf)
+	}
+
+	if cliOpts["deploy"] == true && cliOpts["module"] == true {
+		drs := make(chan downloadRequest)
+		var wg sync.WaitGroup
+		errorCount := make(chan int)
+
+		for w := 1; w <= numWorkers; w++ {
+			go downloadModules(drs, cache, false, &wg, errorCount)
+		}
+
+		if cache, err = NewCache(r10kConfig.Cachedir); err != nil {
+			log.Fatal(err)
+		}
+
+		for sourceName, s := range r10kConfig.Sources { // TODO verify sourceName is usable as a directory name
+			sourceCacheFolder := path.Join(cacheDir, sourceName)
+			git.Fetch(sourceCacheFolder)
+
+			for _, env := range s.deployedEnvironments() {
+				git.Fetch(env.Basedir)
+				puppetFilePath := path.Join(env.Basedir, env.branch, "Puppetfile")
+				pf := NewPuppetFile(puppetFilePath, *env)
+				if pf != nil {
+					for _, m := range cliOpts["<module>"].([]string) {
+						fmt.Println(m)
+						pf.ProcessSingleModule(drs, m)
+					}
+				}
+			}
+		}
+		os.Exit(1)
 	}
 
 	if cliOpts["install"] == true || (cliOpts["deploy"] == true && cliOpts["environment"] == true) {

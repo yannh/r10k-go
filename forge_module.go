@@ -36,7 +36,7 @@ func (m *ForgeModule) Name() string {
 
 type ModuleReleases struct {
 	Results []struct {
-		FileURL string
+		FileURI string `json:"file_uri"`
 		Version string
 	}
 }
@@ -131,7 +131,7 @@ func (m *ForgeModule) getArchiveURL() (string, error) {
 		m.version = mr.Results[0].Version
 	}
 
-	return mr.Results[index].FileURL, nil
+	return mr.Results[index].FileURI, nil
 }
 
 func (m *ForgeModule) Download(to string, cache *Cache) *DownloadError {

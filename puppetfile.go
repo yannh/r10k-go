@@ -177,7 +177,7 @@ func (p *PuppetFile) Process(drs chan<- downloadRequest) error {
 		return ErrMalformedPuppetfile{err.Error()}
 	}
 
-	modulesDir := path.Join(p.env.basedir, "modules")
+	modulesDir := path.Join(p.env.Basedir, "modules")
 	// The moduledir option in the Puppetfile overrides the default
 	if _, ok := opts["moduledir"]; ok {
 		modulesDir = opts["moduledir"]
@@ -195,6 +195,38 @@ func (p *PuppetFile) Process(drs chan<- downloadRequest) error {
 			<-dr.done
 			p.wg.Done()
 		}()
+	}
+
+	p.wg.Wait()
+	return nil
+}
+
+func (p *PuppetFile) ProcessSingleModule(drs chan<- downloadRequest, moduleName string) error {
+	parsedModules, opts, err := p.parse(bufio.NewScanner(p.File))
+	if err != nil {
+		return ErrMalformedPuppetfile{err.Error()}
+	}
+
+	modulesDir := path.Join(p.env.Basedir, "modules")
+	// The moduledir option in the Puppetfile overrides the default
+	if _, ok := opts["moduledir"]; ok {
+		modulesDir = opts["moduledir"]
+		if !path.IsAbs(modulesDir) {
+			modulesDir = path.Join(path.Dir(p.filename), modulesDir)
+		}
+	}
+
+	for _, module := range parsedModules {
+		if module.Name() == moduleName || folderFromModuleName(module.Name()) == moduleName {
+			done := make(chan bool)
+			dr := downloadRequest{m: module, env: p.env, done: done}
+			p.wg.Add(1)
+			go func() {
+				drs <- dr
+				<-dr.done
+				p.wg.Done()
+			}()
+		}
 	}
 
 	p.wg.Wait()
