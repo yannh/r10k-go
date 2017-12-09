@@ -4,6 +4,6 @@
 *.iml
 modules
 bin
-.cache
+.cache*
 .librarian
 environments*

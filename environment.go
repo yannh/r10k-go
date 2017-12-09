@@ -12,9 +12,9 @@ type environment struct {
 	modulesFolder string
 }
 
-func NewEnvironment(s source, branch string, modulesFolder string) *environment {
+func NewEnvironment(s source, branch string) *environment {
 	return &environment{
-		s, branch, modulesFolder,
+		s, branch, "modules",
 	}
 }
 

@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -74,6 +75,7 @@ func WorktreeAdd(directory string, ref Ref, to string) error {
 		cmdLineParameters += " origin/" + ref.Branch
 	}
 
+	log.Printf("%v\n", cmdLineParameters)
 	cmd = exec.Command("git", strings.Split(cmdLineParameters, " ")...)
 	cmd.Dir = directory
 	return cmd.Run()

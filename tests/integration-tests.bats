@@ -2,7 +2,7 @@
 
 setup() {
   # We clean modules and cache between each test
-  rm -rf modules modules-test .cache test-fixtures/modules
+  rm -rf modules modules-test .cache123 test-fixtures/modules environments-production
 }
 
 @test "invocation with a nonexistent puppetfile prints an error" {
@@ -17,11 +17,6 @@ setup() {
   [[ "$output" = *"Downloaded voxpopuli/nginx"* ]]
 }
 
-# @test "should fail if module has incorrect URL" {
-#   run r10k-go puppetfile install --puppetfile test-fixtures/Puppetfile-wrong-url
-#   [ "$status" -ne 0 ]
-# }
-
 @test "should fail on invalid Puppetfile" {
   run r10k-go puppetfile install --puppetfile test-fixtures/Puppetfile-invalid
   [[ "$output" = *"failed parsing Puppetfile"* ]]
@@ -34,3 +29,9 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
+@test "should install a test environment successfully" {
+  run r10k-go deploy environment single_git
+  [ -f environments-production/single_git/modules/firewall/LICENSE ]
+  [ -d .cache123 ]
+  [ "$status" -eq 0 ]
+}

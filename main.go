@@ -1,5 +1,8 @@
 package main
 
+// TODO make sure branch names / folder name conversion is clean everywhere
+// TODO move more functionality to environment / source
+
 import (
 	"bufio"
 	"fmt"
@@ -121,8 +124,32 @@ func main() {
 	var err error
 	var numWorkers int
 	var cache *Cache
+	var puppetFiles []*PuppetFile
 
 	cliOpts := cli()
+
+	numWorkers = 4
+	if cliOpts["--workers"] != nil {
+		if numWorkers, err = strconv.Atoi(cliOpts["--workers"].(string)); err != nil {
+			log.Fatalf("Parameter --workers should be an integer")
+		}
+	}
+
+	r10kFile := "r10k.yml"
+	r10kConfig, err := NewR10kConfig(r10kFile)
+	if err != nil {
+		log.Fatalf("Error parsing r10k configuration file %s: %v", r10kFile, err)
+	}
+
+	cacheDir := ".cache"
+	if r10kConfig.Cachedir != "" {
+		cacheDir = r10kConfig.Cachedir
+	}
+
+	if cache, err = NewCache(cacheDir); err != nil {
+		log.Fatal(err)
+	}
+
 	if cliOpts["check"] != false {
 		puppetfile := "./Puppetfile"
 		pf := NewPuppetFile(puppetfile, environment{})
@@ -137,75 +164,6 @@ func main() {
 	if cliOpts["version"] != false {
 		fmt.Println("0.0.1")
 		os.Exit(0)
-	}
-
-	if cliOpts["--workers"] == nil {
-		numWorkers = 4
-	} else {
-		numWorkers, err = strconv.Atoi(cliOpts["--workers"].(string))
-		if err != nil {
-			log.Fatalf("Parameter --workers should be an integer")
-		}
-	}
-
-	cacheDir := ".cache"
-	var puppetFiles []*PuppetFile
-
-	if cache, err = NewCache(cacheDir); err != nil {
-		log.Fatal(err)
-	}
-
-	r10kFile := "r10k.yml"
-	r10kConfig, err := NewR10kConfig(r10kFile)
-	if err != nil {
-		log.Fatalf("Error parsing r10k configuration file %s: %v", r10kFile, err)
-	}
-
-	if r10kConfig.Cachedir != "" {
-		cacheDir = r10kConfig.Cachedir
-	}
-
-	if cliOpts["deploy"] == true && cliOpts["environment"] == true {
-		var s source
-
-		// Find in which source the environment is
-		// TODO: render deterministic
-		for _, envName := range cliOpts["<env>"].([]string) {
-			sourceName := ""
-
-			for name, source := range r10kConfig.Sources {
-				if git.RepoHasBranch(source.Remote, envName) {
-					sourceName = name
-					s = source
-					break
-				}
-			}
-
-			sourceCacheFolder := path.Join(cacheDir, sourceName)
-			log.Printf("Cache folder is %v", sourceCacheFolder)
-			// Clone if environment doesnt exist, fetch otherwise
-			if err := git.RevParse(sourceCacheFolder); err != nil {
-				log.Printf("%v", r10kConfig.Sources["enviro1"])
-				if err := git.Clone(r10kConfig.Sources[sourceName].Remote, git.Ref{Branch: envName}, sourceCacheFolder); err != nil {
-					log.Fatalf("failed downloading environment: %v", err)
-				}
-			} else {
-				git.Fetch(sourceCacheFolder)
-			}
-
-			git.Clone(sourceCacheFolder, git.Ref{Branch: envName}, path.Join(r10kConfig.Sources[sourceName].Basedir, envName))
-			puppetfile := path.Join(r10kConfig.Sources[sourceName].Basedir, envName, "Puppetfile")
-
-			moduledir := "modules"
-			if cliOpts["--moduledir"] != nil {
-				moduledir = cliOpts["--moduledir"].(string)
-			}
-			pf := NewPuppetFile(puppetfile, environment{s, envName, moduledir})
-			if pf == nil {
-				log.Fatalf("no such file or directory %s", puppetfile)
-			}
-			puppetFiles = append(puppetFiles, pf)
-		}
 	}
 
 	if cliOpts["install"] == true {
@@ -227,6 +185,16 @@ func main() {
 		}
 
 		puppetFiles = append(puppetFiles, pf)
+		os.Exit(installPuppetFiles(puppetFiles, 4, cache, !cliOpts["--no-deps"].(bool)))
+	}
+
+	if cliOpts["deploy"] == true && cliOpts["environment"] == true {
+		moduledir := "modules"
+		if cliOpts["--moduledir"] != nil {
+			moduledir = cliOpts["--moduledir"].(string)
+		}
+		puppetFiles = getPuppetfilesForEnvironments(cliOpts["<env>"].([]string), r10kConfig.Sources, cache, moduledir)
+		os.Exit(installPuppetFiles(puppetFiles, 4, cache, !cliOpts["--no-deps"].(bool)))
 	}
 
 	if cliOpts["deploy"] == true && cliOpts["module"] == true {
@@ -243,7 +211,7 @@ func main() {
 		}
 
 		for sourceName, s := range r10kConfig.Sources { // TODO verify sourceName is usable as a directory name
-			sourceCacheFolder := path.Join(cacheDir, sourceName)
+			sourceCacheFolder := path.Join(cache.folder, sourceName)
 			git.Fetch(sourceCacheFolder)
 
 			for _, env := range s.deployedEnvironments() {
@@ -259,43 +227,5 @@ func main() {
 			}
 		}
 		os.Exit(1)
-	}
-
-	if cliOpts["install"] == true || (cliOpts["deploy"] == true && cliOpts["environment"] == true) {
-		drs := make(chan downloadRequest)
-
-		var wg sync.WaitGroup
-		errorCount := make(chan int)
-
-		for w := 1; w <= numWorkers; w++ {
-			go downloadModules(drs, cache, !cliOpts["--no-deps"].(bool), &wg, errorCount)
-		}
-
-		for _, pf := range puppetFiles {
-			wg.Add(1)
-			go func(pf *PuppetFile, drs chan downloadRequest) {
-				if err := pf.Process(drs); err != nil {
-					if serr, ok := err.(ErrMalformedPuppetfile); ok {
-						log.Fatal(serr)
-					} else {
-						log.Printf("failed parsing %s: %v\n", pf.filename, err)
-					}
-				}
-
-				pf.Close()
-				wg.Done()
-			}(pf, drs)
-		}
-
-		wg.Wait()
-		close(drs)
-
-		nErr := 0
-		for w := 1; w <= numWorkers; w++ {
-			nErr += <-errorCount
-		}
-		close(errorCount)
-
-		os.Exit(nErr)
 	}
 }

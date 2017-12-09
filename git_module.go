@@ -127,6 +127,10 @@ func (m *GitModule) Download(to string, cache *Cache) *DownloadError {
 		return &DownloadError{error: fmt.Errorf("failed updating cache: %v", err), retryable: true}
 	}
 
+	if err = os.MkdirAll(path.Join(to, ".."), 0755); err != nil {
+		return &DownloadError{error: fmt.Errorf("failed creating folder: %v", to), retryable: false}
+	}
+
 	if err = git.WorktreeAdd(m.cacheFolder, m.want, to); err != nil {
 		return &DownloadError{error: fmt.Errorf("failed creating subtree: %v", err), retryable: true}
 	}
