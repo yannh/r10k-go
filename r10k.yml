@@ -1,0 +1,6 @@
+---
+cachedir: ".cache123"
+sources:
+  production:
+    remote: 'https://github.com/xorpaul/g10k-environment.git'
+    basedir: 'environments-production'
