@@ -25,6 +25,35 @@ func NewPuppetFile(puppetfile string, env environment) *PuppetFile {
 	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile, env: env}
 }
 
+func (p *PuppetFile) ToTypedModule(module map[string]string) PuppetModule {
+	switch module["type"] {
+	case "git":
+		return &GitModule{
+			name:        module["name"],
+			repoURL:     module["repoUrl"],
+			installPath: module["installPath"],
+			want: git.Ref{
+				Ref:    module["ref"],
+				Tag:    module["tag"],
+				Branch: module["branch"],
+			},
+		}
+
+	case "github_tarball":
+		return &GithubTarballModule{
+			name:     module["name"],
+			repoName: module["repoName"],
+			version:  module["version"],
+		}
+
+	default:
+		return &ForgeModule{
+			name:    module["name"],
+			version: module["version"],
+		}
+	}
+}
+
 func (p *PuppetFile) Close() { p.File.Close() }
 
 func (p *PuppetFile) Process(drs chan<- downloadRequest) error {
@@ -43,42 +72,10 @@ func (p *PuppetFile) Process(drs chan<- downloadRequest) error {
 	}
 
 	for _, module := range parsedModules {
-		done := make(chan bool)
-		var dr downloadRequest
-
-		switch {
-		case module["type"] == "git":
-			dr = downloadRequest{
-				m: &GitModule{
-					name:        module["name"],
-					repoURL:     module["repoUrl"],
-					installPath: module["installPath"],
-					want: git.Ref{
-						Ref:    module["ref"],
-						Tag:    module["tag"],
-						Branch: module["branch"],
-					}},
-				env:  p.env,
-				done: done}
-
-		case module["type"] == "github_tarball":
-			dr = downloadRequest{
-				m: &GithubTarballModule{
-					name:     module["name"],
-					repoName: module["repoName"],
-					version:  module["version"],
-				},
-				env:  p.env,
-				done: done}
-
-		default:
-			dr = downloadRequest{
-				m: &ForgeModule{
-					name:    module["name"],
-					version: module["version"],
-				},
-				env:  p.env,
-				done: done}
+		dr := downloadRequest{
+			m:    p.ToTypedModule(module),
+			env:  p.env,
+			done: make(chan bool),
 		}
 
 		p.wg.Add(1)
@@ -110,41 +107,10 @@ func (p *PuppetFile) ProcessSingleModule(drs chan<- downloadRequest, moduleName 
 
 	for _, module := range parsedModules {
 		if module["name"] == moduleName || folderFromModuleName(module["name"]) == moduleName {
-			done := make(chan bool)
-			var dr downloadRequest
-			switch {
-			case module["type"] == "git":
-				dr = downloadRequest{
-					m: &GitModule{
-						name:        module["name"],
-						repoURL:     module["repoUrl"],
-						installPath: module["installPath"],
-						want: git.Ref{
-							Ref:    module["ref"],
-							Tag:    module["tag"],
-							Branch: module["branch"],
-						}},
-					env:  p.env,
-					done: done}
-
-			case module["type"] == "github_tarball":
-				dr = downloadRequest{
-					m: &GithubTarballModule{
-						name:     module["name"],
-						repoName: module["repoName"],
-						version:  module["version"],
-					},
-					env:  p.env,
-					done: done}
-
-			default:
-				dr = downloadRequest{
-					m: &ForgeModule{
-						name:    module["name"],
-						version: module["version"],
-					},
-					env:  p.env,
-					done: done}
+			dr := downloadRequest{
+				m:    p.ToTypedModule(module),
+				env:  p.env,
+				done: make(chan bool),
 			}
 
 			p.wg.Add(1)
