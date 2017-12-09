@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"fmt"
 	"github.com/yannh/r10k-go/git"
+	"github.com/yannh/r10k-go/puppetfileparser"
 	"log"
 	"os"
 	"path"
@@ -153,7 +154,7 @@ func main() {
 	if cliOpts["check"] != false {
 		puppetfile := "./Puppetfile"
 		pf := NewPuppetFile(puppetfile, environment{})
-		if _, _, err := pf.parse(bufio.NewScanner(pf.File)); err != nil {
+		if _, _, err := puppetfileparser.Parse(bufio.NewScanner(pf.File)); err != nil {
 			log.Fatalf("failed parsing %s: %v", puppetfile, err)
 		} else {
 			log.Printf("file parsed correctly: %s", puppetfile)

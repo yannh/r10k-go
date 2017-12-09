@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/yannh/r10k-go/git"
+	"github.com/yannh/r10k-go/puppetfileparser"
 	"log"
 	"path"
 	"sync"
@@ -21,7 +22,7 @@ func installPuppetFiles(puppetFiles []*PuppetFile, numWorkers int, cache *Cache,
 		wg.Add(1)
 		go func(pf *PuppetFile, drs chan downloadRequest) {
 			if err := pf.Process(drs); err != nil {
-				if serr, ok := err.(ErrMalformedPuppetfile); ok {
+				if serr, ok := err.(puppetfileparser.ErrMalformedPuppetfile); ok {
 					log.Fatal(serr)
 				} else {
 					log.Printf("failed parsing %s: %v\n", pf.filename, err)
