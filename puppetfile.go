@@ -30,7 +30,7 @@ func (p *PuppetFile) Close() { p.File.Close() }
 func (p *PuppetFile) Process(drs chan<- downloadRequest) error {
 	parsedModules, opts, err := puppetfileparser.Parse(bufio.NewScanner(p.File))
 	if err != nil {
-		return puppetfileparser.ErrMalformedPuppetfile{err.Error()}
+		return puppetfileparser.ErrMalformedPuppetfile{S: err.Error()}
 	}
 
 	modulesDir := path.Join(p.env.Basedir, "modules")
@@ -96,7 +96,7 @@ func (p *PuppetFile) Process(drs chan<- downloadRequest) error {
 func (p *PuppetFile) ProcessSingleModule(drs chan<- downloadRequest, moduleName string) error {
 	parsedModules, opts, err := puppetfileparser.Parse(bufio.NewScanner(p.File))
 	if err != nil {
-		return puppetfileparser.ErrMalformedPuppetfile{err.Error()}
+		return puppetfileparser.ErrMalformedPuppetfile{S: err.Error()}
 	}
 
 	modulesDir := path.Join(p.env.Basedir, "modules")
