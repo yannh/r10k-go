@@ -9,7 +9,7 @@ import (
 type Cache struct {
 	sync.Mutex
 	folder string
-	Locks  map[string]*sync.Mutex
+	Locks  map[interface{}]*sync.Mutex
 }
 
 func NewCache(cacheFolder string) (*Cache, error) {
@@ -18,17 +18,10 @@ func NewCache(cacheFolder string) (*Cache, error) {
 			return &Cache{}, fmt.Errorf("Failed creating cache folder %s: %s", cacheFolder, err.Error())
 		}
 	}
-	return &Cache{folder: cacheFolder, Locks: make(map[string]*sync.Mutex)}, nil
+	return &Cache{folder: cacheFolder, Locks: make(map[interface{}]*sync.Mutex)}, nil
 }
 
-func (cache *Cache) Has(module PuppetModule) bool {
-	if _, err := os.Stat(cache.folder + module.Hash()); err == nil {
-		return true
-	}
-	return false
-}
-
-func (cache *Cache) LockModule(o string) {
+func (cache *Cache) LockModule(o interface{}) {
 	cache.Lock()
 	if _, ok := cache.Locks[o]; !ok {
 		cache.Locks[o] = new(sync.Mutex)
@@ -41,7 +34,7 @@ func (cache *Cache) LockModule(o string) {
 	l.Lock()
 }
 
-func (cache *Cache) UnlockModule(o string) {
+func (cache *Cache) UnlockModule(o interface{}) {
 	cache.Lock()
 	(*cache).Locks[o].Unlock()
 	cache.Unlock()

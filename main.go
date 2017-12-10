@@ -22,7 +22,6 @@ type PuppetModule interface {
 	IsUpToDate(folder string) bool
 	Name() string
 	Download(to string, cache *Cache) *DownloadError
-	Hash() string
 	InstallPath() string
 }
 
@@ -74,7 +73,7 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 	errors := 0
 
 	for dr := range drs {
-		cache.LockModule(dr.m.Hash())
+		cache.LockModule(dr.m)
 
 		modulesFolder := path.Join(dr.env.Basedir, dr.env.branch, dr.env.modulesFolder)
 		if dr.m.InstallPath() != "" {
@@ -115,7 +114,7 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 		}
 
 		dr.done <- true
-		cache.UnlockModule(dr.m.Hash())
+		cache.UnlockModule(dr.m)
 	}
 
 	errorsCount <- errors
@@ -217,7 +216,7 @@ func main() {
 
 			for _, env := range s.deployedEnvironments() {
 				git.Fetch(env.Basedir)
-				puppetFilePath := path.Join(env.Basedir, env.branch, "Puppetfile")
+				puppetFilePath := path.Join(s.Basedir, env.branch, "Puppetfile")
 				pf := NewPuppetFile(puppetFilePath, *env)
 				if pf != nil {
 					limit := cliOpts["<module>"].([]string)
