@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/yannh/r10k-go/git"
 	"github.com/yannh/r10k-go/puppetfileparser"
 	"log"
@@ -10,12 +11,12 @@ import (
 
 func installPuppetFiles(puppetFiles []*puppetFile, numWorkers int, cache *cache, withDeps bool, limitToModules ...string) int {
 	drs := make(chan downloadRequest)
-
+	done := make(chan bool)
+	downloadResults := make(chan downloadResult)
 	var wg sync.WaitGroup
-	errorCount := make(chan int)
 
 	for w := 1; w <= numWorkers; w++ {
-		go downloadModules(drs, cache, withDeps, &wg, errorCount)
+		go downloadModules(drs, cache, downloadResults, done)
 	}
 
 	for _, pf := range puppetFiles {
@@ -34,28 +35,59 @@ func installPuppetFiles(puppetFiles []*puppetFile, numWorkers int, cache *cache,
 		}(pf, drs)
 	}
 
-	wg.Wait()
-	close(drs)
+	go func() {
+		wg.Wait()
+		close(drs)
+	}()
 
-	nErr := 0
-	for w := 1; w <= numWorkers; w++ {
-		nErr += <-errorCount
+	nWorkersDone := 0
+	for {
+		select {
+		case dresult := <-downloadResults:
+			switch {
+			case dresult.err == nil && !dresult.skipped:
+				fmt.Printf("Downloaded %s to %s\n", dresult.m.getName(), dresult.to)
+				if withDeps {
+					metadataFilename := path.Join(dresult.to, "metadata.json")
+					if mf := newMetadataFile(metadataFilename, dresult.env); mf != nil {
+						wg.Add(1)
+						go func(mf *metadataFile, drs chan downloadRequest) {
+							if err := mf.Process(drs); err != nil {
+								log.Printf("failed processing %s: %v\n", metadataFilename, err)
+							}
+
+							mf.Close()
+							wg.Done()
+						}(mf, drs)
+					}
+				}
+
+			case dresult.err != nil && dresult.err.retryable:
+				log.Printf("failed downloading %s: %v... Retrying\n", dresult.m.getName(), dresult.err)
+			case dresult.err != nil && !dresult.err.retryable:
+				log.Printf("failed downloading %s: %v.. Giving up!\n", dresult.m.getName(), dresult.err)
+			}
+
+		case <-done:
+			nWorkersDone = nWorkersDone + 1
+			if nWorkersDone >= numWorkers {
+				close(downloadResults)
+				return 0
+			}
+		}
 	}
-	close(errorCount)
-	return nErr
+
 }
 
 func getPuppetfilesForEnvironments(envs []string, sources map[string]source, cache *cache, moduledir string) []*puppetFile {
 	var puppetFiles []*puppetFile
 	var s source
 
-	//for _, envName := range cliOpts["<env>"].([]string) {
 	for _, envName := range envs {
 		sourceName := ""
 
 		// Find in which source the environment is
 		// TODO: make deterministic
-		//for name, source := range r10kConfig.Sources {
 		for name, source := range sources {
 			if git.RepoHasBranch(source.Remote, envName) {
 				sourceName = name
