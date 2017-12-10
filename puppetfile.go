@@ -10,7 +10,6 @@ import (
 
 type PuppetFile struct {
 	*os.File // Make that a io.Reader
-	wg       *sync.WaitGroup
 	filename string
 	env      environment
 }
@@ -21,7 +20,7 @@ func NewPuppetFile(puppetfile string, env environment) *PuppetFile {
 		return nil
 	}
 
-	return &PuppetFile{File: f, wg: &sync.WaitGroup{}, filename: puppetfile, env: env}
+	return &PuppetFile{File: f, filename: puppetfile, env: env}
 }
 
 func (p *PuppetFile) ToTypedModule(module map[string]string) PuppetModule {
@@ -58,6 +57,8 @@ func (p *PuppetFile) Close() { p.File.Close() }
 // Will download all modules in the Puppetfile
 // limitToModules is a list of module names - if set, only those will be downloaded
 func (p *PuppetFile) Process(drs chan<- downloadRequest, limitToModules ...string) error {
+	var wg sync.WaitGroup
+
 	parsedModules, _, err := puppetfileparser.Parse(bufio.NewScanner(p.File))
 	if err != nil {
 		return puppetfileparser.ErrMalformedPuppetfile{S: err.Error()}
@@ -78,14 +79,14 @@ func (p *PuppetFile) Process(drs chan<- downloadRequest, limitToModules ...strin
 			done: make(chan bool),
 		}
 
-		p.wg.Add(1)
+		wg.Add(1)
 		go func() {
 			drs <- dr
 			<-dr.done
-			p.wg.Done()
+			wg.Done()
 		}()
 	}
 
-	p.wg.Wait()
+	wg.Wait()
 	return nil
 }

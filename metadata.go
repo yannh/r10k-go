@@ -20,7 +20,6 @@ type Metadata struct {
 
 type MetadataFile struct {
 	*os.File
-	wg       *sync.WaitGroup
 	filename string
 	env      environment
 }
@@ -32,14 +31,14 @@ func NewMetadataFile(metadataFile string, env environment) *MetadataFile {
 		return nil
 	}
 
-	return &MetadataFile{File: f, filename: metadataFile, wg: &sync.WaitGroup{}, env: env}
+	return &MetadataFile{File: f, filename: metadataFile, env: env}
 }
 
-func (m *MetadataFile) moduleProcessedCallback() { m.wg.Done() }
-func (m *MetadataFile) Close()                   { m.File.Close() }
+func (m *MetadataFile) Close() { m.File.Close() }
 
 func (m *MetadataFile) Process(drs chan<- downloadRequest) error {
 	var meta Metadata
+	var wg sync.WaitGroup
 
 	metadataFile, err := ioutil.ReadAll(m.File)
 	if err != nil {
@@ -51,7 +50,7 @@ func (m *MetadataFile) Process(drs chan<- downloadRequest) error {
 	}
 
 	for _, req := range meta.dependencies {
-		m.wg.Add(1)
+		wg.Add(1)
 		done := make(chan bool)
 
 		go func(req dependency) {
@@ -63,10 +62,10 @@ func (m *MetadataFile) Process(drs chan<- downloadRequest) error {
 				done: done,
 			}
 			<-done
-			m.wg.Done()
+			wg.Done()
 		}(req)
 	}
 
-	m.wg.Wait()
+	wg.Wait()
 	return nil
 }
