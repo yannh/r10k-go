@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-type GitModule struct {
+type gitModule struct {
 	name        string
 	repoURL     string
 	installPath string
@@ -21,12 +21,12 @@ type GitModule struct {
 	want        git.Ref
 }
 
-func (m *GitModule) getName() string { return m.name }
-func (m *GitModule) getInstallPath() string {
+func (m *gitModule) getName() string { return m.name }
+func (m *gitModule) getInstallPath() string {
 	return m.installPath
 }
 
-func (m *GitModule) isUpToDate(folder string) bool {
+func (m *gitModule) isUpToDate(folder string) bool {
 	if _, err := os.Stat(folder); err != nil {
 		return false
 	}
@@ -59,13 +59,13 @@ func (m *GitModule) isUpToDate(folder string) bool {
 	return false
 }
 
-func (m *GitModule) Hash() string {
+func (m *gitModule) hash() string {
 	hasher := sha1.New()
 	hasher.Write([]byte(m.repoURL))
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
-func (m *GitModule) currentCommit(folder string) (string, error) {
+func (m *gitModule) currentCommit(folder string) (string, error) {
 	var gitFile, headFile *os.File
 	var err error
 	worktreeFolder := ""
@@ -97,7 +97,7 @@ func (m *GitModule) currentCommit(folder string) (string, error) {
 	return version, nil
 }
 
-func (m *GitModule) updateCache() error {
+func (m *gitModule) updateCache() error {
 	if _, err := os.Stat(m.cacheFolder); err == nil {
 		if _, err := os.Stat(path.Join(m.cacheFolder, ".git")); err != nil {
 			// Cache folder exists, but is not a GIT Repo - we remove it and redownload
@@ -105,34 +105,34 @@ func (m *GitModule) updateCache() error {
 		} else {
 			// Cache exists and is a git repository, we try to update it
 			if err := git.Fetch(m.cacheFolder); err != nil {
-				return &DownloadError{error: err, retryable: true}
+				return &downloadError{error: err, retryable: true}
 			}
 			return nil
 		}
 	}
 
 	if err := git.Clone(m.repoURL, git.Ref{}, m.cacheFolder); err != nil {
-		return &DownloadError{error: err, retryable: true}
+		return &downloadError{error: err, retryable: true}
 	}
 
 	return nil
 }
 
-func (m *GitModule) download(to string, cache *Cache) *DownloadError {
+func (m *gitModule) download(to string, cache *Cache) *downloadError {
 	var err error
 
-	m.cacheFolder = path.Join(cache.folder, m.Hash())
+	m.cacheFolder = path.Join(cache.folder, m.hash())
 
 	if err = m.updateCache(); err != nil {
-		return &DownloadError{error: fmt.Errorf("failed updating cache: %v", err), retryable: true}
+		return &downloadError{error: fmt.Errorf("failed updating cache: %v", err), retryable: true}
 	}
 
 	if err = os.MkdirAll(path.Join(to, ".."), 0755); err != nil {
-		return &DownloadError{error: fmt.Errorf("failed creating folder: %v", to), retryable: false}
+		return &downloadError{error: fmt.Errorf("failed creating folder: %v", to), retryable: false}
 	}
 
 	if err = git.WorktreeAdd(m.cacheFolder, m.want, to); err != nil {
-		return &DownloadError{error: fmt.Errorf("failed creating subtree: %v", err), retryable: true}
+		return &downloadError{error: fmt.Errorf("failed creating subtree: %v", err), retryable: true}
 	}
 
 	return nil

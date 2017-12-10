@@ -13,31 +13,31 @@ type dependency struct {
 	versionRequirement string
 }
 
-type Metadata struct {
+type metadata struct {
 	name         string
 	dependencies []dependency
 }
 
-type MetadataFile struct {
+type metadataFile struct {
 	*os.File
 	filename string
 	env      environment
 }
 
-func NewMetadataFile(metadataFile string, env environment) *MetadataFile {
+func NewMetadataFile(mf string, env environment) *metadataFile {
 	// We just ignore if the file doesn't exist'
-	f, err := os.Open(metadataFile)
+	f, err := os.Open(mf)
 	if err != nil {
 		return nil
 	}
 
-	return &MetadataFile{File: f, filename: metadataFile, env: env}
+	return &metadataFile{File: f, filename: mf, env: env}
 }
 
-func (m *MetadataFile) Close() { m.File.Close() }
+func (m *metadataFile) Close() { m.File.Close() }
 
-func (m *MetadataFile) Process(drs chan<- downloadRequest) error {
-	var meta Metadata
+func (m *metadataFile) Process(drs chan<- downloadRequest) error {
+	var meta metadata
 	var wg sync.WaitGroup
 
 	metadataFile, err := ioutil.ReadAll(m.File)
@@ -55,7 +55,7 @@ func (m *MetadataFile) Process(drs chan<- downloadRequest) error {
 
 		go func(req dependency) {
 			drs <- downloadRequest{
-				m: &ForgeModule{
+				m: &forgeModule{
 					name: req.name,
 				},
 				env:  m.env,

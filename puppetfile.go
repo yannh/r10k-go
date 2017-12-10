@@ -8,25 +8,25 @@ import (
 	"sync"
 )
 
-type PuppetFile struct {
+type puppetFile struct {
 	*os.File // Make that a io.Reader
 	filename string
 	env      environment
 }
 
-func NewPuppetFile(puppetfile string, env environment) *PuppetFile {
-	f, err := os.Open(puppetfile)
+func newPuppetFile(pf string, env environment) *puppetFile {
+	f, err := os.Open(pf)
 	if err != nil {
 		return nil
 	}
 
-	return &PuppetFile{File: f, filename: puppetfile, env: env}
+	return &puppetFile{File: f, filename: pf, env: env}
 }
 
-func (p *PuppetFile) ToTypedModule(module map[string]string) PuppetModule {
+func (p *puppetFile) toTypedModule(module map[string]string) puppetModule {
 	switch module["type"] {
 	case "git":
-		return &GitModule{
+		return &gitModule{
 			name:        module["name"],
 			repoURL:     module["repoUrl"],
 			installPath: module["installPath"],
@@ -38,25 +38,25 @@ func (p *PuppetFile) ToTypedModule(module map[string]string) PuppetModule {
 		}
 
 	case "github_tarball":
-		return &GithubTarballModule{
+		return &githubTarballModule{
 			name:     module["name"],
 			repoName: module["repoName"],
 			version:  module["version"],
 		}
 
 	default:
-		return &ForgeModule{
+		return &forgeModule{
 			name:    module["name"],
 			version: module["version"],
 		}
 	}
 }
 
-func (p *PuppetFile) Close() { p.File.Close() }
+func (p *puppetFile) Close() { p.File.Close() }
 
 // Will download all modules in the Puppetfile
 // limitToModules is a list of module names - if set, only those will be downloaded
-func (p *PuppetFile) Process(drs chan<- downloadRequest, limitToModules ...string) error {
+func (p *puppetFile) Process(drs chan<- downloadRequest, limitToModules ...string) error {
 	var wg sync.WaitGroup
 
 	parsedModules, _, err := puppetfileparser.Parse(bufio.NewScanner(p.File))
@@ -74,7 +74,7 @@ func (p *PuppetFile) Process(drs chan<- downloadRequest, limitToModules ...strin
 		}
 
 		dr := downloadRequest{
-			m:    p.ToTypedModule(module),
+			m:    p.toTypedModule(module),
 			env:  p.env,
 			done: make(chan bool),
 		}

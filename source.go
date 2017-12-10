@@ -23,7 +23,7 @@ func (s *source) deployedEnvironments() []environment {
 	envs := make([]environment, 0)
 
 	for _, f := range files {
-		envs = append(envs, NewEnvironment(*s, f.Name()))
+		envs = append(envs, newEnvironment(*s, f.Name()))
 	}
 
 	return envs

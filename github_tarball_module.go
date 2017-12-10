@@ -13,7 +13,7 @@ import (
 	"path"
 )
 
-type GithubTarballModule struct {
+type githubTarballModule struct {
 	name        string
 	repoName    string
 	version     string
@@ -23,26 +23,26 @@ type GithubTarballModule struct {
 	modulePath  string
 }
 
-type GHModuleReleases []struct {
+type ghModuleRelease []struct {
 	Name        string
 	Tarball_url string
 }
 
-func (m *GithubTarballModule) getName() string {
+func (m *githubTarballModule) getName() string {
 	return m.name
 }
 
-func (m *GithubTarballModule) getInstallPath() string {
+func (m *githubTarballModule) getInstallPath() string {
 	return m.installPath
 }
 
-func (m *GithubTarballModule) Hash() string {
+func (m *githubTarballModule) hash() string {
 	hasher := sha1.New()
 	hasher.Write([]byte(m.name))
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
-func (m *GithubTarballModule) isUpToDate(folder string) bool {
+func (m *githubTarballModule) isUpToDate(folder string) bool {
 	_, err := os.Stat(folder)
 	if err != nil {
 		return false
@@ -63,7 +63,7 @@ func (m *GithubTarballModule) isUpToDate(folder string) bool {
 	return v == m.version
 }
 
-func (m *GithubTarballModule) downloadToCache(r io.Reader) error {
+func (m *githubTarballModule) downloadToCache(r io.Reader) error {
 	if err := os.MkdirAll(path.Join(m.cacheFolder), 0755); err != nil {
 		return err
 	}
@@ -79,27 +79,27 @@ func (m *GithubTarballModule) downloadToCache(r io.Reader) error {
 	return err
 }
 
-func (m *GithubTarballModule) downloadURL() (string, error) {
+func (m *githubTarballModule) downloadURL() (string, error) {
 	ghAPIRoot := "https://api.github.com"
 
 	url := ghAPIRoot + "/repos/" + m.repoName + "/tags"
 
 	resp, err := http.Get(url)
 	if err != nil {
-		return "", &DownloadError{err, true}
+		return "", &downloadError{err, true}
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return "", &DownloadError{fmt.Errorf("failed retrieving URL - %s", resp.Status), true}
+		return "", &downloadError{fmt.Errorf("failed retrieving URL - %s", resp.Status), true}
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return "", &DownloadError{err, true}
+		return "", &downloadError{err, true}
 	}
 
-	var gr GHModuleReleases
+	var gr ghModuleRelease
 	if err = json.Unmarshal(body, &gr); err != nil {
 		return "", err
 	}
@@ -115,7 +115,7 @@ func (m *GithubTarballModule) downloadURL() (string, error) {
 			}
 		}
 		if !versionFound {
-			return "", &DownloadError{fmt.Errorf("Could not find version %s for module %s", m.version, m.getName()), false}
+			return "", &downloadError{fmt.Errorf("Could not find version %s for module %s", m.version, m.getName()), false}
 		}
 	} else {
 		m.version = gr[0].Name
@@ -124,20 +124,20 @@ func (m *GithubTarballModule) downloadURL() (string, error) {
 	return gr[index].Tarball_url, nil
 }
 
-func (m *GithubTarballModule) download(to string, cache *Cache) *DownloadError {
+func (m *githubTarballModule) download(to string, cache *Cache) *downloadError {
 	var err error
 	var url string
 
-	m.cacheFolder = path.Join(cache.folder, m.Hash())
+	m.cacheFolder = path.Join(cache.folder, m.hash())
 
 	if url, err = m.downloadURL(); err != nil {
-		return &DownloadError{err, true}
+		return &downloadError{err, true}
 	}
 
 	if _, err = os.Stat(path.Join(m.cacheFolder, m.version+".tar.gz")); err != nil {
 		forgeArchive, err := http.Get(url)
 		if err != nil {
-			return &DownloadError{fmt.Errorf("Failed retrieving %s", url), true}
+			return &downloadError{fmt.Errorf("Failed retrieving %s", url), true}
 		}
 		defer forgeArchive.Body.Close()
 
@@ -146,19 +146,19 @@ func (m *GithubTarballModule) download(to string, cache *Cache) *DownloadError {
 
 	r, err := os.Open(path.Join(m.cacheFolder, m.version+".tar.gz"))
 	if err != nil {
-		return &DownloadError{err, false}
+		return &downloadError{err, false}
 	}
 
 	defer r.Close()
 
 	if err = gzip.Extract(r, to); err != nil {
-		return &DownloadError{err, false}
+		return &downloadError{err, false}
 	}
 
 	versionFile := path.Join(to, ".version")
 	r, err = os.OpenFile(versionFile, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		return &DownloadError{fmt.Errorf("Failed creating file %s", versionFile), false}
+		return &downloadError{fmt.Errorf("Failed creating file %s", versionFile), false}
 	}
 	defer r.Close()
 	r.WriteString(m.version)

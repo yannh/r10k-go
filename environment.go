@@ -12,7 +12,7 @@ type environment struct {
 	modulesFolder string
 }
 
-func NewEnvironment(s source, branch string) environment {
+func newEnvironment(s source, branch string) environment {
 	return environment{
 		s, branch, "modules",
 	}

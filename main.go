@@ -17,26 +17,26 @@ import (
 	"time"
 )
 
-// PuppetModule is implemented by ForgeModule, GitModule, GithubTarballModule, ....
-type PuppetModule interface {
+// puppetModule is implemented by forgeModule, gitModule, githubTarballModule, ....
+type puppetModule interface {
 	isUpToDate(folder string) bool
 	getName() string
-	download(to string, cache *Cache) *DownloadError
+	download(to string, cache *Cache) *downloadError
 	getInstallPath() string
 }
 
-type DownloadError struct {
+type downloadError struct {
 	error
 	retryable bool
 }
 
-type DownloadResult struct {
-	err     *DownloadError
+type downloadResult struct {
+	err     *downloadError
 	skipped bool
 }
 
 type downloadRequest struct {
-	m    PuppetModule
+	m    puppetModule
 	env  environment
 	done chan bool
 }
@@ -51,9 +51,9 @@ func folderFromModuleName(moduleName string) string {
 	return splitPath[len(splitPath)-1]
 }
 
-func downloadModule(m PuppetModule, to string, cache *Cache) DownloadResult {
+func downloadModule(m puppetModule, to string, cache *Cache) downloadResult {
 	if m.isUpToDate(to) {
-		return DownloadResult{err: nil, skipped: true}
+		return downloadResult{err: nil, skipped: true}
 	}
 
 	if err := os.RemoveAll(to); err != nil {
@@ -61,10 +61,10 @@ func downloadModule(m PuppetModule, to string, cache *Cache) DownloadResult {
 	}
 
 	if derr := m.download(to, cache); derr != nil {
-		return DownloadResult{err: derr, skipped: false}
+		return downloadResult{err: derr, skipped: false}
 	}
 
-	return DownloadResult{err: nil, skipped: false}
+	return downloadResult{err: nil, skipped: false}
 }
 
 func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, wg *sync.WaitGroup, errorsCount chan<- int) {
@@ -124,7 +124,7 @@ func main() {
 	var err error
 	var numWorkers int
 	var cache *Cache
-	var puppetFiles []*PuppetFile
+	var puppetFiles []*puppetFile
 
 	cliOpts := cli()
 
@@ -136,7 +136,7 @@ func main() {
 	}
 
 	r10kFile := "r10k.yml"
-	r10kConfig, err := NewR10kConfig(r10kFile)
+	r10kConfig, err := newR10kConfig(r10kFile)
 	if err != nil {
 		log.Fatalf("Error parsing r10k configuration file %s: %v", r10kFile, err)
 	}
@@ -152,7 +152,7 @@ func main() {
 
 	if cliOpts["check"] != false {
 		puppetfile := "./Puppetfile"
-		pf := NewPuppetFile(puppetfile, environment{})
+		pf := newPuppetFile(puppetfile, environment{})
 		if _, _, err := puppetfileparser.Parse(bufio.NewScanner(pf.File)); err != nil {
 			log.Fatalf("failed parsing %s: %v", puppetfile, err)
 		} else {
@@ -179,7 +179,7 @@ func main() {
 		if cliOpts["--moduledir"] != nil {
 			moduledir = cliOpts["--moduledir"].(string)
 		}
-		pf := NewPuppetFile(puppetfile, environment{source{Basedir: path.Dir(puppetfile), prefix: "", Remote: ""}, "", moduledir})
+		pf := newPuppetFile(puppetfile, environment{source{Basedir: path.Dir(puppetfile), prefix: "", Remote: ""}, "", moduledir})
 		if pf == nil {
 			log.Fatalf("no such file or directory %s", puppetfile)
 		}
@@ -217,7 +217,7 @@ func main() {
 			for _, env := range s.deployedEnvironments() {
 				git.Fetch(s.Basedir)
 				puppetFilePath := path.Join(s.Basedir, env.branch, "Puppetfile")
-				pf := NewPuppetFile(puppetFilePath, env)
+				pf := newPuppetFile(puppetFilePath, env)
 				if pf != nil {
 					limit := cliOpts["<module>"].([]string)
 					pf.Process(drs, limit...)

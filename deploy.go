@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-func installPuppetFiles(puppetFiles []*PuppetFile, numWorkers int, cache *Cache, withDeps bool) int {
+func installPuppetFiles(puppetFiles []*puppetFile, numWorkers int, cache *Cache, withDeps bool) int {
 	drs := make(chan downloadRequest)
 
 	var wg sync.WaitGroup
@@ -20,7 +20,7 @@ func installPuppetFiles(puppetFiles []*PuppetFile, numWorkers int, cache *Cache,
 
 	for _, pf := range puppetFiles {
 		wg.Add(1)
-		go func(pf *PuppetFile, drs chan downloadRequest) {
+		go func(pf *puppetFile, drs chan downloadRequest) {
 			if err := pf.Process(drs); err != nil {
 				if serr, ok := err.(puppetfileparser.ErrMalformedPuppetfile); ok {
 					log.Fatal(serr)
@@ -45,8 +45,8 @@ func installPuppetFiles(puppetFiles []*PuppetFile, numWorkers int, cache *Cache,
 	return nErr
 }
 
-func getPuppetfilesForEnvironments(envs []string, sources map[string]source, cache *Cache, moduledir string) []*PuppetFile {
-	var puppetFiles []*PuppetFile
+func getPuppetfilesForEnvironments(envs []string, sources map[string]source, cache *Cache, moduledir string) []*puppetFile {
+	var puppetFiles []*puppetFile
 	var s source
 
 	//for _, envName := range cliOpts["<env>"].([]string) {
@@ -79,7 +79,7 @@ func getPuppetfilesForEnvironments(envs []string, sources map[string]source, cac
 		git.Clone(sourceCacheFolder, git.Ref{Branch: envName}, path.Join(sources[sourceName].Basedir, envName))
 		puppetfile := path.Join(sources[sourceName].Basedir, envName, "Puppetfile")
 
-		pf := NewPuppetFile(puppetfile, environment{s, envName, moduledir})
+		pf := newPuppetFile(puppetfile, environment{s, envName, moduledir})
 		if pf == nil {
 			log.Fatalf("no such file or directory %s", puppetfile)
 		}

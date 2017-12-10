@@ -13,7 +13,7 @@ type R10kConfig struct {
 	Sources  map[string]source
 }
 
-func NewR10kConfig(filename string) (*R10kConfig, error) {
+func newR10kConfig(filename string) (*R10kConfig, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		log.Fatalf("could not open %s: %v", filename, err)
