@@ -5,7 +5,6 @@ import (
 	"github.com/yannh/r10k-go/git"
 	"github.com/yannh/r10k-go/puppetfileparser"
 	"os"
-	"path"
 	"sync"
 )
 
@@ -56,22 +55,23 @@ func (p *PuppetFile) ToTypedModule(module map[string]string) PuppetModule {
 
 func (p *PuppetFile) Close() { p.File.Close() }
 
-func (p *PuppetFile) Process(drs chan<- downloadRequest) error {
-	parsedModules, opts, err := puppetfileparser.Parse(bufio.NewScanner(p.File))
+// Will download all modules in the Puppetfile
+// limitToModules is a list of module names - if set, only those will be downloaded
+func (p *PuppetFile) Process(drs chan<- downloadRequest, limitToModules ...string) error {
+	parsedModules, _, err := puppetfileparser.Parse(bufio.NewScanner(p.File))
 	if err != nil {
 		return puppetfileparser.ErrMalformedPuppetfile{S: err.Error()}
 	}
 
-	modulesDir := path.Join(p.env.Basedir, "modules")
-	// The moduledir option in the Puppetfile overrides the default
-	if _, ok := opts["moduledir"]; ok {
-		modulesDir = opts["moduledir"]
-		if !path.IsAbs(modulesDir) {
-			modulesDir = path.Join(path.Dir(p.filename), modulesDir)
-		}
-	}
-
 	for _, module := range parsedModules {
+		if len(limitToModules) > 0 {
+			for _, moduleName := range limitToModules {
+				if module["name"] != moduleName && folderFromModuleName(module["name"]) != moduleName {
+					continue
+				}
+			}
+		}
+
 		dr := downloadRequest{
 			m:    p.ToTypedModule(module),
 			env:  p.env,
@@ -84,42 +84,6 @@ func (p *PuppetFile) Process(drs chan<- downloadRequest) error {
 			<-dr.done
 			p.wg.Done()
 		}()
-	}
-
-	p.wg.Wait()
-	return nil
-}
-
-func (p *PuppetFile) ProcessSingleModule(drs chan<- downloadRequest, moduleName string) error {
-	parsedModules, opts, err := puppetfileparser.Parse(bufio.NewScanner(p.File))
-	if err != nil {
-		return puppetfileparser.ErrMalformedPuppetfile{S: err.Error()}
-	}
-
-	modulesDir := path.Join(p.env.Basedir, "modules")
-	// The moduledir option in the Puppetfile overrides the default
-	if _, ok := opts["moduledir"]; ok {
-		modulesDir = opts["moduledir"]
-		if !path.IsAbs(modulesDir) {
-			modulesDir = path.Join(path.Dir(p.filename), modulesDir)
-		}
-	}
-
-	for _, module := range parsedModules {
-		if module["name"] == moduleName || folderFromModuleName(module["name"]) == moduleName {
-			dr := downloadRequest{
-				m:    p.ToTypedModule(module),
-				env:  p.env,
-				done: make(chan bool),
-			}
-
-			p.wg.Add(1)
-			go func() {
-				drs <- dr
-				<-dr.done
-				p.wg.Done()
-			}()
-		}
 	}
 
 	p.wg.Wait()

@@ -220,10 +220,8 @@ func main() {
 				puppetFilePath := path.Join(env.Basedir, env.branch, "Puppetfile")
 				pf := NewPuppetFile(puppetFilePath, *env)
 				if pf != nil {
-					for _, m := range cliOpts["<module>"].([]string) {
-						fmt.Println(m)
-						pf.ProcessSingleModule(drs, m)
-					}
+					limit := cliOpts["<module>"].([]string)
+					pf.Process(drs, limit...)
 				}
 			}
 		}
