@@ -20,7 +20,7 @@ type ForgeModule struct {
 	cacheFolder string
 }
 
-func (m *ForgeModule) InstallPath() string {
+func (m *ForgeModule) getInstallPath() string {
 	return ""
 }
 
@@ -30,7 +30,7 @@ func (m *ForgeModule) Hash() string {
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
-func (m *ForgeModule) Name() string {
+func (m *ForgeModule) getName() string {
 	return m.name
 }
 
@@ -59,7 +59,7 @@ func (m *ForgeModule) downloadToCache(r io.Reader) error {
 	return err
 }
 
-func (m *ForgeModule) IsUpToDate(folder string) bool {
+func (m *ForgeModule) isUpToDate(folder string) bool {
 	_, err := os.Stat(folder)
 	if err != nil {
 		return false
@@ -85,7 +85,7 @@ func (m *ForgeModule) getArchiveURL() (string, error) {
 	APIVersion := "v3"
 
 	url := forgeURL + APIVersion + "/releases?" +
-		"module=" + m.Name() +
+		"module=" + m.getName() +
 		"&sort_by=release_date" +
 		"&limit=100"
 
@@ -110,7 +110,7 @@ func (m *ForgeModule) getArchiveURL() (string, error) {
 	if err != nil {
 		return "", &DownloadError{err, true}
 	} else if len(mr.Results) == 0 {
-		return "", &DownloadError{fmt.Errorf("Could not find module %s", m.Name()), false}
+		return "", &DownloadError{fmt.Errorf("Could not find module %s", m.getName()), false}
 	}
 
 	// If version is not specified, we pick the latest version
@@ -125,7 +125,7 @@ func (m *ForgeModule) getArchiveURL() (string, error) {
 			}
 		}
 		if !versionFound {
-			return "", &DownloadError{fmt.Errorf("Could not find version %s for module %s", m.version, m.Name()), false}
+			return "", &DownloadError{fmt.Errorf("Could not find version %s for module %s", m.version, m.getName()), false}
 		}
 	} else {
 		m.version = mr.Results[0].Version
@@ -134,7 +134,7 @@ func (m *ForgeModule) getArchiveURL() (string, error) {
 	return mr.Results[index].FileURI, nil
 }
 
-func (m *ForgeModule) Download(to string, cache *Cache) *DownloadError {
+func (m *ForgeModule) download(to string, cache *Cache) *DownloadError {
 	var err error
 	var url string
 

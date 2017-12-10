@@ -21,12 +21,12 @@ type GitModule struct {
 	want        git.Ref
 }
 
-func (m *GitModule) Name() string { return m.name }
-func (m *GitModule) InstallPath() string {
+func (m *GitModule) getName() string { return m.name }
+func (m *GitModule) getInstallPath() string {
 	return m.installPath
 }
 
-func (m *GitModule) IsUpToDate(folder string) bool {
+func (m *GitModule) isUpToDate(folder string) bool {
 	if _, err := os.Stat(folder); err != nil {
 		return false
 	}
@@ -71,7 +71,7 @@ func (m *GitModule) currentCommit(folder string) (string, error) {
 	worktreeFolder := ""
 
 	if gitFile, err = os.Open(path.Join(folder, ".git")); err != nil {
-		return "", fmt.Errorf("Error getting current commit for %s", m.Name())
+		return "", fmt.Errorf("Error getting current commit for %s", m.getName())
 	}
 
 	defer gitFile.Close()
@@ -86,7 +86,7 @@ func (m *GitModule) currentCommit(folder string) (string, error) {
 	}
 
 	if headFile, err = os.Open(path.Join(worktreeFolder, "HEAD")); err != nil {
-		return "", fmt.Errorf("failed getting current commit for %s", m.Name())
+		return "", fmt.Errorf("failed getting current commit for %s", m.getName())
 	}
 	defer headFile.Close()
 
@@ -118,7 +118,7 @@ func (m *GitModule) updateCache() error {
 	return nil
 }
 
-func (m *GitModule) Download(to string, cache *Cache) *DownloadError {
+func (m *GitModule) download(to string, cache *Cache) *DownloadError {
 	var err error
 
 	m.cacheFolder = path.Join(cache.folder, m.Hash())

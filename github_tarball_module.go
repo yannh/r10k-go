@@ -28,11 +28,11 @@ type GHModuleReleases []struct {
 	Tarball_url string
 }
 
-func (m *GithubTarballModule) Name() string {
+func (m *GithubTarballModule) getName() string {
 	return m.name
 }
 
-func (m *GithubTarballModule) InstallPath() string {
+func (m *GithubTarballModule) getInstallPath() string {
 	return m.installPath
 }
 
@@ -42,7 +42,7 @@ func (m *GithubTarballModule) Hash() string {
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
-func (m *GithubTarballModule) IsUpToDate(folder string) bool {
+func (m *GithubTarballModule) isUpToDate(folder string) bool {
 	_, err := os.Stat(folder)
 	if err != nil {
 		return false
@@ -115,7 +115,7 @@ func (m *GithubTarballModule) downloadURL() (string, error) {
 			}
 		}
 		if !versionFound {
-			return "", &DownloadError{fmt.Errorf("Could not find version %s for module %s", m.version, m.Name()), false}
+			return "", &DownloadError{fmt.Errorf("Could not find version %s for module %s", m.version, m.getName()), false}
 		}
 	} else {
 		m.version = gr[0].Name
@@ -124,7 +124,7 @@ func (m *GithubTarballModule) downloadURL() (string, error) {
 	return gr[index].Tarball_url, nil
 }
 
-func (m *GithubTarballModule) Download(to string, cache *Cache) *DownloadError {
+func (m *GithubTarballModule) download(to string, cache *Cache) *DownloadError {
 	var err error
 	var url string
 

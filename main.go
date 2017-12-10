@@ -19,10 +19,10 @@ import (
 
 // PuppetModule is implemented by ForgeModule, GitModule, GithubTarballModule, ....
 type PuppetModule interface {
-	IsUpToDate(folder string) bool
-	Name() string
-	Download(to string, cache *Cache) *DownloadError
-	InstallPath() string
+	isUpToDate(folder string) bool
+	getName() string
+	download(to string, cache *Cache) *DownloadError
+	getInstallPath() string
 }
 
 type DownloadError struct {
@@ -52,7 +52,7 @@ func folderFromModuleName(moduleName string) string {
 }
 
 func downloadModule(m PuppetModule, to string, cache *Cache) DownloadResult {
-	if m.IsUpToDate(to) {
+	if m.isUpToDate(to) {
 		return DownloadResult{err: nil, skipped: true}
 	}
 
@@ -60,7 +60,7 @@ func downloadModule(m PuppetModule, to string, cache *Cache) DownloadResult {
 		log.Fatalf("Error removing folder: %s", to)
 	}
 
-	if derr := m.Download(to, cache); derr != nil {
+	if derr := m.download(to, cache); derr != nil {
 		return DownloadResult{err: derr, skipped: false}
 	}
 
@@ -76,15 +76,15 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 		cache.lockModule(dr.m)
 
 		modulesFolder := path.Join(dr.env.source.Basedir, dr.env.branch, dr.env.modulesFolder)
-		if dr.m.InstallPath() != "" {
-			modulesFolder = path.Join(dr.env.source.Basedir, dr.env.branch, dr.m.InstallPath())
+		if dr.m.getInstallPath() != "" {
+			modulesFolder = path.Join(dr.env.source.Basedir, dr.env.branch, dr.m.getInstallPath())
 		}
 
-		to := path.Join(modulesFolder, folderFromModuleName(dr.m.Name()))
+		to := path.Join(modulesFolder, folderFromModuleName(dr.m.getName()))
 
 		dres := downloadModule(dr.m, to, cache)
 		for i := 1; dres.err != nil && dres.err.retryable && i < maxTries; i++ {
-			log.Printf("failed downloading %s: %v... Retrying\n", dr.m.Name(), dres.err)
+			log.Printf("failed downloading %s: %v... Retrying\n", dr.m.getName(), dres.err)
 			time.Sleep(retryDelay)
 			dres = downloadModule(dr.m, to, cache)
 		}
@@ -106,10 +106,10 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 			}
 
 			if !dres.skipped {
-				log.Println("Downloaded " + dr.m.Name() + " to " + to)
+				log.Println("Downloaded " + dr.m.getName() + " to " + to)
 			}
 		} else {
-			log.Printf("failed downloading %s to %s: %v. Giving up!\n", dr.m.Name(), to, dres.err)
+			log.Printf("failed downloading %s to %s: %v. Giving up!\n", dr.m.getName(), to, dres.err)
 			errors++
 		}
 
