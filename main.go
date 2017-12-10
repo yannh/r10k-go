@@ -75,9 +75,9 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 	for dr := range drs {
 		cache.LockModule(dr.m)
 
-		modulesFolder := path.Join(dr.env.Basedir, dr.env.branch, dr.env.modulesFolder)
+		modulesFolder := path.Join(dr.env.source.Basedir, dr.env.branch, dr.env.modulesFolder)
 		if dr.m.InstallPath() != "" {
-			modulesFolder = path.Join(dr.env.Basedir, dr.env.branch, dr.m.InstallPath())
+			modulesFolder = path.Join(dr.env.source.Basedir, dr.env.branch, dr.m.InstallPath())
 		}
 
 		to := path.Join(modulesFolder, folderFromModuleName(dr.m.Name()))
@@ -215,9 +215,9 @@ func main() {
 			git.Fetch(sourceCacheFolder)
 
 			for _, env := range s.deployedEnvironments() {
-				git.Fetch(env.Basedir)
+				git.Fetch(s.Basedir)
 				puppetFilePath := path.Join(s.Basedir, env.branch, "Puppetfile")
-				pf := NewPuppetFile(puppetFilePath, *env)
+				pf := NewPuppetFile(puppetFilePath, env)
 				if pf != nil {
 					limit := cliOpts["<module>"].([]string)
 					pf.Process(drs, limit...)

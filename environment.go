@@ -7,19 +7,19 @@ import (
 )
 
 type environment struct {
-	source
+	source        source
 	branch        string
 	modulesFolder string
 }
 
-func NewEnvironment(s source, branch string) *environment {
-	return &environment{
+func NewEnvironment(s source, branch string) environment {
+	return environment{
 		s, branch, "modules",
 	}
 }
 
 func (e *environment) InstalledModules() []string {
-	folder := path.Join(e.Basedir, e.branch, e.modulesFolder)
+	folder := path.Join(e.source.Basedir, e.branch, e.modulesFolder)
 
 	files, err := ioutil.ReadDir(folder)
 	if err != nil {

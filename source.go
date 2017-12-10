@@ -12,7 +12,7 @@ type source struct {
 	Remote  string
 }
 
-func (s *source) deployedEnvironments() []*environment {
+func (s *source) deployedEnvironments() []environment {
 	folder := path.Join(s.Basedir)
 
 	files, err := ioutil.ReadDir(folder)
@@ -20,7 +20,7 @@ func (s *source) deployedEnvironments() []*environment {
 		log.Fatal(err)
 	}
 
-	envs := make([]*environment, 0)
+	envs := make([]environment, 0)
 
 	for _, f := range files {
 		envs = append(envs, NewEnvironment(*s, f.Name()))
