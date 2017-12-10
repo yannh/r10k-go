@@ -146,10 +146,6 @@ func main() {
 		cacheDir = r10kConfig.Cachedir
 	}
 
-	if cache, err = NewCache(cacheDir); err != nil {
-		log.Fatal(err)
-	}
-
 	if cliOpts["check"] != false {
 		puppetfile := "./Puppetfile"
 		pf := newPuppetFile(puppetfile, environment{})
@@ -164,6 +160,10 @@ func main() {
 	if cliOpts["version"] != false {
 		fmt.Println("0.0.1")
 		os.Exit(0)
+	}
+
+	if cache, err = NewCache(cacheDir); err != nil {
+		log.Fatal(err)
 	}
 
 	if cliOpts["install"] == true {
@@ -198,32 +198,20 @@ func main() {
 	}
 
 	if cliOpts["deploy"] == true && cliOpts["module"] == true {
-		drs := make(chan downloadRequest)
-		var wg sync.WaitGroup
-		errorCount := make(chan int)
-
-		for w := 1; w <= numWorkers; w++ {
-			go downloadModules(drs, cache, false, &wg, errorCount)
-		}
-
-		if cache, err = NewCache(r10kConfig.Cachedir); err != nil {
-			log.Fatal(err)
-		}
-
 		for sourceName, s := range r10kConfig.Sources { // TODO verify sourceName is usable as a directory name
 			sourceCacheFolder := path.Join(cache.folder, sourceName)
 			git.Fetch(sourceCacheFolder)
 
 			for _, env := range s.deployedEnvironments() {
-				git.Fetch(s.Basedir)
-				puppetFilePath := path.Join(s.Basedir, env.branch, "Puppetfile")
-				pf := newPuppetFile(puppetFilePath, env)
-				if pf != nil {
-					limit := cliOpts["<module>"].([]string)
-					pf.Process(drs, limit...)
+				if pf := newPuppetFile(path.Join(s.Basedir, env.branch, "Puppetfile"), env); pf != nil {
+					puppetFiles = append(puppetFiles, pf)
 				}
 			}
 		}
-		os.Exit(1)
+
+		limit := cliOpts["<module>"].([]string)
+		os.Exit(installPuppetFiles(puppetFiles, numWorkers, cache, false, limit...))
 	}
+
+	os.Exit(1)
 }

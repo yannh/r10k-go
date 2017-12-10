@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-func installPuppetFiles(puppetFiles []*puppetFile, numWorkers int, cache *Cache, withDeps bool) int {
+func installPuppetFiles(puppetFiles []*puppetFile, numWorkers int, cache *Cache, withDeps bool, limitToModules ...string) int {
 	drs := make(chan downloadRequest)
 
 	var wg sync.WaitGroup
@@ -21,7 +21,7 @@ func installPuppetFiles(puppetFiles []*puppetFile, numWorkers int, cache *Cache,
 	for _, pf := range puppetFiles {
 		wg.Add(1)
 		go func(pf *puppetFile, drs chan downloadRequest) {
-			if err := pf.Process(drs); err != nil {
+			if err := pf.Process(drs, limitToModules...); err != nil {
 				if serr, ok := err.(puppetfileparser.ErrMalformedPuppetfile); ok {
 					log.Fatal(serr)
 				} else {
