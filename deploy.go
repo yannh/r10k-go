@@ -8,7 +8,7 @@ import (
 	"sync"
 )
 
-func installPuppetFiles(puppetFiles []*puppetFile, numWorkers int, cache *Cache, withDeps bool, limitToModules ...string) int {
+func installPuppetFiles(puppetFiles []*puppetFile, numWorkers int, cache *cache, withDeps bool, limitToModules ...string) int {
 	drs := make(chan downloadRequest)
 
 	var wg sync.WaitGroup
@@ -45,7 +45,7 @@ func installPuppetFiles(puppetFiles []*puppetFile, numWorkers int, cache *Cache,
 	return nErr
 }
 
-func getPuppetfilesForEnvironments(envs []string, sources map[string]source, cache *Cache, moduledir string) []*puppetFile {
+func getPuppetfilesForEnvironments(envs []string, sources map[string]source, cache *cache, moduledir string) []*puppetFile {
 	var puppetFiles []*puppetFile
 	var s source
 

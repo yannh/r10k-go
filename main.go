@@ -21,7 +21,7 @@ import (
 type puppetModule interface {
 	isUpToDate(folder string) bool
 	getName() string
-	download(to string, cache *Cache) *downloadError
+	download(to string, cache *cache) *downloadError
 	getInstallPath() string
 }
 
@@ -51,7 +51,7 @@ func folderFromModuleName(moduleName string) string {
 	return splitPath[len(splitPath)-1]
 }
 
-func downloadModule(m puppetModule, to string, cache *Cache) downloadResult {
+func downloadModule(m puppetModule, to string, cache *cache) downloadResult {
 	if m.isUpToDate(to) {
 		return downloadResult{err: nil, skipped: true}
 	}
@@ -67,7 +67,7 @@ func downloadModule(m puppetModule, to string, cache *Cache) downloadResult {
 	return downloadResult{err: nil, skipped: false}
 }
 
-func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, wg *sync.WaitGroup, errorsCount chan<- int) {
+func downloadModules(drs chan downloadRequest, cache *cache, downloadDeps bool, wg *sync.WaitGroup, errorsCount chan<- int) {
 	maxTries := 1
 	retryDelay := 5 * time.Second
 	errors := 0
@@ -92,7 +92,7 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 		if dres.err == nil {
 			if downloadDeps && !dres.skipped {
 				metadataFilename := path.Join(to, "metadata.json")
-				if mf := NewMetadataFile(metadataFilename, dr.env); mf != nil {
+				if mf := newMetadataFile(metadataFilename, dr.env); mf != nil {
 					wg.Add(1)
 					go func() {
 						if err := mf.Process(drs); err != nil {
@@ -123,7 +123,7 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 func main() {
 	var err error
 	var numWorkers int
-	var cache *Cache
+	var cache *cache
 	var puppetFiles []*puppetFile
 
 	cliOpts := cli()
@@ -162,7 +162,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	if cache, err = NewCache(cacheDir); err != nil {
+	if cache, err = newCache(cacheDir); err != nil {
 		log.Fatal(err)
 	}
 
@@ -199,8 +199,7 @@ func main() {
 
 	if cliOpts["deploy"] == true && cliOpts["module"] == true {
 		for sourceName, s := range r10kConfig.Sources { // TODO verify sourceName is usable as a directory name
-			sourceCacheFolder := path.Join(cache.folder, sourceName)
-			git.Fetch(sourceCacheFolder)
+			git.Fetch(path.Join(cache.folder, sourceName))
 
 			for _, env := range s.deployedEnvironments() {
 				if pf := newPuppetFile(path.Join(s.Basedir, env.branch, "Puppetfile"), env); pf != nil {

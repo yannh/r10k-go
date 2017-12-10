@@ -24,7 +24,7 @@ type metadataFile struct {
 	env      environment
 }
 
-func NewMetadataFile(mf string, env environment) *metadataFile {
+func newMetadataFile(mf string, env environment) *metadataFile {
 	// We just ignore if the file doesn't exist'
 	f, err := os.Open(mf)
 	if err != nil {

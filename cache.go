@@ -6,22 +6,22 @@ import (
 	"sync"
 )
 
-type Cache struct {
+type cache struct {
 	sync.Mutex
 	folder string
 	Locks  map[interface{}]*sync.Mutex
 }
 
-func NewCache(cacheFolder string) (*Cache, error) {
+func newCache(cacheFolder string) (*cache, error) {
 	if _, err := os.Stat(cacheFolder); err != nil {
 		if err = os.MkdirAll(cacheFolder, 0775); err != nil {
-			return &Cache{}, fmt.Errorf("Failed creating cache folder %s: %s", cacheFolder, err.Error())
+			return &cache{}, fmt.Errorf("Failed creating cache folder %s: %s", cacheFolder, err.Error())
 		}
 	}
-	return &Cache{folder: cacheFolder, Locks: make(map[interface{}]*sync.Mutex)}, nil
+	return &cache{folder: cacheFolder, Locks: make(map[interface{}]*sync.Mutex)}, nil
 }
 
-func (cache *Cache) lockModule(o interface{}) {
+func (cache *cache) lockModule(o interface{}) {
 	cache.Lock()
 	if _, ok := cache.Locks[o]; !ok {
 		cache.Locks[o] = new(sync.Mutex)
@@ -34,7 +34,7 @@ func (cache *Cache) lockModule(o interface{}) {
 	l.Lock()
 }
 
-func (cache *Cache) unlockModule(o interface{}) {
+func (cache *cache) unlockModule(o interface{}) {
 	cache.Lock()
 	(*cache).Locks[o].Unlock()
 	cache.Unlock()

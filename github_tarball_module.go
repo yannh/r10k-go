@@ -24,8 +24,8 @@ type githubTarballModule struct {
 }
 
 type ghModuleRelease []struct {
-	Name        string
-	Tarball_url string
+	Name       string
+	TarballURL string `json:"tarball_url"`
 }
 
 func (m *githubTarballModule) getName() string {
@@ -121,10 +121,10 @@ func (m *githubTarballModule) downloadURL() (string, error) {
 		m.version = gr[0].Name
 	}
 
-	return gr[index].Tarball_url, nil
+	return gr[index].TarballURL, nil
 }
 
-func (m *githubTarballModule) download(to string, cache *Cache) *downloadError {
+func (m *githubTarballModule) download(to string, cache *cache) *downloadError {
 	var err error
 	var url string
 

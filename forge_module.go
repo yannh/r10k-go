@@ -134,7 +134,7 @@ func (m *forgeModule) getArchiveURL() (string, error) {
 	return mr.Results[index].FileURI, nil
 }
 
-func (m *forgeModule) download(to string, cache *Cache) *downloadError {
+func (m *forgeModule) download(to string, cache *cache) *downloadError {
 	var err error
 	var url string
 

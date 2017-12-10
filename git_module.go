@@ -100,10 +100,10 @@ func (m *gitModule) currentCommit(folder string) (string, error) {
 func (m *gitModule) updateCache() error {
 	if _, err := os.Stat(m.cacheFolder); err == nil {
 		if _, err := os.Stat(path.Join(m.cacheFolder, ".git")); err != nil {
-			// Cache folder exists, but is not a GIT Repo - we remove it and redownload
+			// cache folder exists, but is not a GIT Repo - we remove it and redownload
 			os.RemoveAll(m.cacheFolder)
 		} else {
-			// Cache exists and is a git repository, we try to update it
+			// cache exists and is a git repository, we try to update it
 			if err := git.Fetch(m.cacheFolder); err != nil {
 				return &downloadError{error: err, retryable: true}
 			}
@@ -118,7 +118,7 @@ func (m *gitModule) updateCache() error {
 	return nil
 }
 
-func (m *gitModule) download(to string, cache *Cache) *downloadError {
+func (m *gitModule) download(to string, cache *cache) *downloadError {
 	var err error
 
 	m.cacheFolder = path.Join(cache.folder, m.hash())

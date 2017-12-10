@@ -8,12 +8,12 @@ import (
 	"os"
 )
 
-type R10kConfig struct {
+type r10kConfig struct {
 	Cachedir string
 	Sources  map[string]source
 }
 
-func newR10kConfig(filename string) (*R10kConfig, error) {
+func newR10kConfig(filename string) (*r10kConfig, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		log.Fatalf("could not open %s: %v", filename, err)
@@ -22,8 +22,8 @@ func newR10kConfig(filename string) (*R10kConfig, error) {
 	return parseR10kConfig(f)
 }
 
-func parseR10kConfig(r io.Reader) (*R10kConfig, error) {
-	c := &R10kConfig{}
+func parseR10kConfig(r io.Reader) (*r10kConfig, error) {
+	c := &r10kConfig{}
 
 	buf := new(bytes.Buffer)
 	buf.ReadFrom(r)
