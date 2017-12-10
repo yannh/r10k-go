@@ -73,7 +73,7 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 	errors := 0
 
 	for dr := range drs {
-		cache.LockModule(dr.m)
+		cache.lockModule(dr.m)
 
 		modulesFolder := path.Join(dr.env.source.Basedir, dr.env.branch, dr.env.modulesFolder)
 		if dr.m.InstallPath() != "" {
@@ -114,7 +114,7 @@ func downloadModules(drs chan downloadRequest, cache *Cache, downloadDeps bool, 
 		}
 
 		dr.done <- true
-		cache.UnlockModule(dr.m)
+		cache.unlockModule(dr.m)
 	}
 
 	errorsCount <- errors

@@ -18,7 +18,7 @@ func NewEnvironment(s source, branch string) environment {
 	}
 }
 
-func (e *environment) InstalledModules() []string {
+func (e *environment) installedModules() []string {
 	folder := path.Join(e.source.Basedir, e.branch, e.modulesFolder)
 
 	files, err := ioutil.ReadDir(folder)

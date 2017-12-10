@@ -21,7 +21,7 @@ func NewCache(cacheFolder string) (*Cache, error) {
 	return &Cache{folder: cacheFolder, Locks: make(map[interface{}]*sync.Mutex)}, nil
 }
 
-func (cache *Cache) LockModule(o interface{}) {
+func (cache *Cache) lockModule(o interface{}) {
 	cache.Lock()
 	if _, ok := cache.Locks[o]; !ok {
 		cache.Locks[o] = new(sync.Mutex)
@@ -34,7 +34,7 @@ func (cache *Cache) LockModule(o interface{}) {
 	l.Lock()
 }
 
-func (cache *Cache) UnlockModule(o interface{}) {
+func (cache *Cache) unlockModule(o interface{}) {
 	cache.Lock()
 	(*cache).Locks[o].Unlock()
 	cache.Unlock()
