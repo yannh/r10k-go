@@ -5,7 +5,6 @@ import (
 	"github.com/yannh/r10k-go/git"
 	"github.com/yannh/r10k-go/puppetfileparser"
 	"os"
-	"sync"
 )
 
 type puppetFile struct {
@@ -57,13 +56,14 @@ func (p *puppetFile) Close() { p.File.Close() }
 // Will download all modules in the Puppetfile
 // limitToModules is a list of module names - if set, only those will be downloaded
 func (p *puppetFile) Process(drs chan<- downloadRequest, limitToModules ...string) error {
-	var wg sync.WaitGroup
+	done := make(chan bool)
 
 	parsedModules, _, err := puppetfileparser.Parse(bufio.NewScanner(p.File))
 	if err != nil {
 		return puppetfileparser.ErrMalformedPuppetfile{S: err.Error()}
 	}
 
+	nDownloadRequests := 0
 	for _, module := range parsedModules {
 		if len(limitToModules) > 0 {
 			for _, moduleName := range limitToModules {
@@ -76,17 +76,19 @@ func (p *puppetFile) Process(drs chan<- downloadRequest, limitToModules ...strin
 		dr := downloadRequest{
 			m:    p.toTypedModule(module),
 			env:  p.env,
-			done: make(chan bool),
+			done: done,
 		}
 
-		wg.Add(1)
+		nDownloadRequests++
 		go func() {
 			drs <- dr
 			<-dr.done
-			wg.Done()
 		}()
 	}
 
-	wg.Wait()
+	for i := 0; i < nDownloadRequests; i++ {
+		<-done
+	}
+
 	return nil
 }
