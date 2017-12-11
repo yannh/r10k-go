@@ -82,7 +82,6 @@ func (p *puppetFile) Process(drs chan<- downloadRequest, limitToModules ...strin
 		nDownloadRequests++
 		go func() {
 			drs <- dr
-			<-dr.done
 		}()
 	}
 

@@ -52,14 +52,14 @@ func (m *metadataFile) Process(drs chan<- downloadRequest) error {
 	for _, req := range meta.dependencies {
 		nDownloadRequests++
 		go func(req dependency) {
-			drs <- downloadRequest{
+			dr := downloadRequest{
 				m: &forgeModule{
 					name: req.name,
 				},
 				env:  m.env,
 				done: done,
 			}
-			<-done
+			drs <- dr
 		}(req)
 	}
 
