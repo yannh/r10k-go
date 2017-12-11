@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"sync"
 )
 
 type dependency struct {
@@ -37,7 +38,7 @@ func (m *metadataFile) Close() { m.File.Close() }
 
 func (m *metadataFile) Process(drs chan<- downloadRequest) error {
 	var meta metadata
-	done := make(chan bool)
+	var wg sync.WaitGroup
 
 	metadataFile, err := ioutil.ReadAll(m.File)
 	if err != nil {
@@ -48,9 +49,9 @@ func (m *metadataFile) Process(drs chan<- downloadRequest) error {
 		return fmt.Errorf("JSON file malformed: %v", err)
 	}
 
-	n := 0
 	for _, req := range meta.dependencies {
-		n++
+		wg.Add(1)
+		done := make(chan bool)
 
 		go func(req dependency) {
 			drs <- downloadRequest{
@@ -60,12 +61,11 @@ func (m *metadataFile) Process(drs chan<- downloadRequest) error {
 				env:  m.env,
 				done: done,
 			}
+			<-done
+			wg.Done()
 		}(req)
 	}
 
-	for i := 0; i < n; i++ {
-		<-done
-	}
-
+	wg.Wait()
 	return nil
 }

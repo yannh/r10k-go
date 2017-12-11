@@ -13,6 +13,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -32,9 +33,6 @@ type downloadError struct {
 type downloadResult struct {
 	err     *downloadError
 	skipped bool
-	m       puppetModule
-	to      string
-	env     environment
 }
 
 type downloadRequest struct {
@@ -55,7 +53,7 @@ func folderFromModuleName(moduleName string) string {
 
 func downloadModule(m puppetModule, to string, cache *cache) downloadResult {
 	if m.isUpToDate(to) {
-		return downloadResult{m: m, to: to, err: nil, skipped: true}
+		return downloadResult{err: nil, skipped: true}
 	}
 
 	if err := os.RemoveAll(to); err != nil {
@@ -63,15 +61,16 @@ func downloadModule(m puppetModule, to string, cache *cache) downloadResult {
 	}
 
 	if derr := m.download(to, cache); derr != nil {
-		return downloadResult{m: m, to: to, err: derr, skipped: false}
+		return downloadResult{err: derr, skipped: false}
 	}
 
-	return downloadResult{m: m, to: to, err: nil, skipped: false}
+	return downloadResult{err: nil, skipped: false}
 }
 
-func downloadModules(drs chan downloadRequest, cache *cache, downloadResults chan<- downloadResult, done chan<- bool) {
-	maxTries := 3
+func downloadModules(drs chan downloadRequest, cache *cache, downloadDeps bool, wg *sync.WaitGroup, errorsCount chan<- int) {
+	maxTries := 1
 	retryDelay := 5 * time.Second
+	errors := 0
 
 	for dr := range drs {
 		cache.lockModule(dr.m)
@@ -80,28 +79,45 @@ func downloadModules(drs chan downloadRequest, cache *cache, downloadResults cha
 		if dr.m.getInstallPath() != "" {
 			modulesFolder = path.Join(dr.env.source.Basedir, dr.env.branch, dr.m.getInstallPath())
 		}
+
 		to := path.Join(modulesFolder, folderFromModuleName(dr.m.getName()))
 
 		dres := downloadModule(dr.m, to, cache)
-		dres.env = dr.env
 		for i := 1; dres.err != nil && dres.err.retryable && i < maxTries; i++ {
-			downloadResults <- dres
+			log.Printf("failed downloading %s: %v... Retrying\n", dr.m.getName(), dres.err)
 			time.Sleep(retryDelay)
 			dres = downloadModule(dr.m, to, cache)
-			dres.env = dr.env
 		}
 
-		if dres.err != nil {
-			dres.err.retryable = false
+		if dres.err == nil {
+			if downloadDeps && !dres.skipped {
+				metadataFilename := path.Join(to, "metadata.json")
+				if mf := newMetadataFile(metadataFilename, dr.env); mf != nil {
+					wg.Add(1)
+					go func() {
+						if err := mf.Process(drs); err != nil {
+							log.Printf("failed parsing %s: %v\n", metadataFilename, err)
+						}
+
+						mf.Close()
+						wg.Done()
+					}()
+				}
+			}
+
+			if !dres.skipped {
+				log.Println("Downloaded " + dr.m.getName() + " to " + to)
+			}
+		} else {
+			log.Printf("failed downloading %s to %s: %v. Giving up!\n", dr.m.getName(), to, dres.err)
+			errors++
 		}
 
-		downloadResults <- dres
 		dr.done <- true
-
 		cache.unlockModule(dr.m)
 	}
 
-	done <- true
+	errorsCount <- errors
 }
 
 func main() {
@@ -125,10 +141,15 @@ func main() {
 		log.Fatalf("Error parsing r10k configuration file %s: %v", r10kFile, err)
 	}
 
+	cacheDir := ".cache"
+	if r10kConfig.Cachedir != "" {
+		cacheDir = r10kConfig.Cachedir
+	}
+
 	if cliOpts["check"] != false {
 		puppetfile := "./Puppetfile"
 		pf := newPuppetFile(puppetfile, environment{})
-		if _, _, err := puppetfileparser.Parse(bufio.NewScanner(pf)); err != nil {
+		if _, _, err := puppetfileparser.Parse(bufio.NewScanner(pf.File)); err != nil {
 			log.Fatalf("failed parsing %s: %v", puppetfile, err)
 		} else {
 			log.Printf("file parsed correctly: %s", puppetfile)
@@ -141,10 +162,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	cacheDir := ".cache"
-	if r10kConfig.Cachedir != "" {
-		cacheDir = r10kConfig.Cachedir
-	}
 	if cache, err = newCache(cacheDir); err != nil {
 		log.Fatal(err)
 	}
