@@ -28,27 +28,28 @@ func Clone(repo string, ref Ref, to string) error {
 	cmdParameters += " " + repo + " " + to
 
 	cmd := exec.Command("git", strings.Split(cmdParameters, " ")...)
-	return cmd.Run()
+	if output, err := cmd.CombinedOutput(); err != nil {
+		err = fmt.Errorf("failed running git %s: %s", cmdParameters, string(output))
+		return err
+	}
+
+	return nil
 }
 
 func Fetch(path string) error {
+	var err error
+
 	cmd := exec.Command("git", "fetch")
 	cmd.Dir = path
-	return cmd.Run()
-}
 
-func ListBranches(path string) ([]string, error) {
-	cmd := exec.Command("git", "branch", "--all", "--format", "%(refname:short)")
-	cmd.Dir = path
-	output, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("Error getting branches %v", output)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		err = fmt.Errorf("failed running git fetch: %s", string(output))
 	}
 
-	return strings.Split(strings.Trim(string(output), "\n"), "\n"), nil
+	return err
 }
 
-func RepoHasBranch(origin string, branch string) bool {
+func RepoHasRemoteBranch(origin string, branch string) bool {
 	cmd := exec.Command("git", "ls-remote", "--exit-code", "-h", origin, branch)
 	if err := cmd.Run(); err != nil {
 		return false
@@ -59,6 +60,11 @@ func RepoHasBranch(origin string, branch string) bool {
 func WorktreeAdd(directory string, ref Ref, to string) error {
 	var cmd *exec.Cmd
 	var cwd string
+	var err error
+
+	if _, err := os.Stat(path.Join(directory, ".git")); err != nil {
+		return fmt.Errorf("can not create worktree from %s: folder is not a git repository", directory)
+	}
 
 	if !path.IsAbs(to) {
 		cwd, _ = os.Getwd()
@@ -71,10 +77,15 @@ func WorktreeAdd(directory string, ref Ref, to string) error {
 	}
 
 	if ref.Branch != "" {
-		cmdLineParameters += " origin/" + ref.Branch
+		cmdLineParameters += " " + ref.Branch
 	}
 
 	cmd = exec.Command("git", strings.Split(cmdLineParameters, " ")...)
+	fmt.Print(cmdLineParameters)
 	cmd.Dir = directory
-	return cmd.Run()
+	if output, err := cmd.CombinedOutput(); err != nil {
+		err = fmt.Errorf("failed running git %s: %s", cmdLineParameters, string(output))
+	}
+
+	return err
 }

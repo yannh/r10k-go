@@ -29,7 +29,6 @@ func TestParseModuleGit(t *testing.T) {
 			t.Error("failed parsing module")
 		}
 	}
-
 }
 
 func TestParse(t *testing.T) {

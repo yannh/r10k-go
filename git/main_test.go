@@ -54,6 +54,12 @@ func TestWorktreeAdd(t *testing.T) {
 
 	filename := "tmp/git-repo/readme.md"
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		t.Error("cloning failed; failed to create " + filename)
+		t.Error("creating worktree failed; failed to create " + filename)
+	}
+}
+
+func TestWorktreeAddIncorrectPath(t *testing.T) {
+	if err := WorktreeAdd("test-fixtures/not-a-git-repo/", Ref{Branch: "master"}, "tmp/git-repo"); err == nil {
+		t.Error(err)
 	}
 }

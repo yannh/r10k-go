@@ -57,7 +57,7 @@ func getPuppetfilesForEnvironments(envs []string, sources map[string]source, cac
 		// TODO: make deterministic
 		//for name, source := range r10kConfig.Sources {
 		for name, source := range sources {
-			if git.RepoHasBranch(source.Remote, envName) {
+			if git.RepoHasRemoteBranch(source.Remote, envName) {
 				sourceName = name
 				s = source
 				break
@@ -66,11 +66,10 @@ func getPuppetfilesForEnvironments(envs []string, sources map[string]source, cac
 
 		sourceCacheFolder := path.Join(cache.folder, sourceName)
 
-		// Clone if environment doesnt exist, fetch otherwise
+		// Clone if source doesnt exist, fetch otherwise
 		if err := git.RevParse(sourceCacheFolder); err != nil {
-			log.Printf("%v", sources["enviro1"])
 			if err := git.Clone(sources[sourceName].Remote, git.Ref{Branch: envName}, sourceCacheFolder); err != nil {
-				log.Fatalf("failed downloading environment: %v", err)
+				log.Fatalf("%s", err)
 			}
 		} else {
 			git.Fetch(sourceCacheFolder)

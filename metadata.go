@@ -48,9 +48,7 @@ func (m *metadataFile) Process(drs chan<- downloadRequest) error {
 		return fmt.Errorf("JSON file malformed: %v", err)
 	}
 
-	nDownloadRequests := 0
 	for _, req := range meta.dependencies {
-		nDownloadRequests++
 		dr := downloadRequest{
 			m: &forgeModule{
 				name: req.name,
@@ -64,7 +62,7 @@ func (m *metadataFile) Process(drs chan<- downloadRequest) error {
 		}(dr)
 	}
 
-	for i := 0; i < nDownloadRequests; i++ {
+	for i := 0; i < len(meta.dependencies); i++ {
 		<-done
 	}
 
