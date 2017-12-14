@@ -49,6 +49,19 @@ func Fetch(path string) error {
 	return err
 }
 
+func Checkout(path string, branch string) error {
+	var err error
+
+	cmd := exec.Command("git", "checkout", branch)
+	cmd.Dir = path
+
+	if output, err := cmd.CombinedOutput(); err != nil {
+		err = fmt.Errorf("failed running git fetch: %s", string(output))
+	}
+
+	return err
+}
+
 func RepoHasRemoteBranch(origin string, branch string) bool {
 	cmd := exec.Command("git", "ls-remote", "--exit-code", "-h", origin, branch)
 	if err := cmd.Run(); err != nil {
@@ -81,7 +94,6 @@ func WorktreeAdd(directory string, ref Ref, to string) error {
 	}
 
 	cmd = exec.Command("git", strings.Split(cmdLineParameters, " ")...)
-	fmt.Print(cmdLineParameters)
 	cmd.Dir = directory
 	if output, err := cmd.CombinedOutput(); err != nil {
 		err = fmt.Errorf("failed running git %s: %s", cmdLineParameters, string(output))

@@ -1,18 +1,27 @@
 package main
 
 import (
+	"fmt"
+	"github.com/yannh/r10k-go/git"
 	"io/ioutil"
 	"log"
 	"path"
 )
 
-type source struct {
-	Basedir string
-	prefix  string
-	Remote  string
+type source interface {
+	deployedEnvironments() []environment
+	fetchTo(c *cache) error
 }
 
-func (s *source) deployedEnvironments() []environment {
+type gitSource struct {
+	Name     string
+	location string
+	Basedir  string
+	prefix   string
+	Remote   string
+}
+
+func (s *gitSource) deployedEnvironments() []environment {
 	folder := path.Join(s.Basedir)
 
 	files, err := ioutil.ReadDir(folder)
@@ -27,4 +36,22 @@ func (s *source) deployedEnvironments() []environment {
 	}
 
 	return envs
+}
+
+func (s *gitSource) fetch(c *cache) error {
+	if c == nil || c.folder == "" {
+		return fmt.Errorf("can not fetch source without cache")
+	}
+	s.location = path.Join(c.folder, s.Name)
+
+	// Clone if gitSource doesnt exist, fetch otherwise
+	if err := git.RevParse(s.location); err != nil {
+		if err := git.Clone(s.Remote, git.Ref{}, s.location); err != nil {
+			log.Fatalf("%s", err)
+		}
+	} else {
+		git.Fetch(s.location)
+	}
+
+	return nil
 }

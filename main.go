@@ -1,7 +1,7 @@
 package main
 
 // TODO make sure branch names / folder name conversion is clean everywhere
-// TODO move more functionality to environment / source
+// TODO move more functionality to environment / gitSource
 
 import (
 	"bufio"
@@ -179,7 +179,7 @@ func main() {
 		if cliOpts["--moduledir"] != nil {
 			moduledir = cliOpts["--moduledir"].(string)
 		}
-		pf := newPuppetFile(puppetfile, environment{source{Basedir: path.Dir(puppetfile), prefix: "", Remote: ""}, "", moduledir})
+		pf := newPuppetFile(puppetfile, environment{gitSource{Basedir: path.Dir(puppetfile), prefix: "", Remote: ""}, "", moduledir})
 		if pf == nil {
 			log.Fatalf("no such file or directory %s", puppetfile)
 		}
@@ -193,7 +193,16 @@ func main() {
 		if cliOpts["--moduledir"] != nil {
 			moduledir = cliOpts["--moduledir"].(string)
 		}
-		puppetFiles = getPuppetfilesForEnvironments(cliOpts["<env>"].([]string), r10kConfig.Sources, cache, moduledir)
+
+		sources := make([]gitSource, 0)
+		for sName, s := range r10kConfig.Sources {
+			s.Name = sName
+			sources = append(sources, s)
+		}
+
+		envs := getEnvironments(cliOpts["<env>"].([]string), sources)
+		puppetFiles := getPuppetFilesForEnvironments(envs, moduledir, cache)
+
 		os.Exit(installPuppetFiles(puppetFiles, 4, cache, !cliOpts["--no-deps"].(bool)))
 	}
 

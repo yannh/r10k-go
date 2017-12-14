@@ -7,12 +7,12 @@ import (
 )
 
 type environment struct {
-	source        source
+	source        gitSource
 	branch        string
 	modulesFolder string
 }
 
-func newEnvironment(s source, branch string) environment {
+func newEnvironment(s gitSource, branch string) environment {
 	return environment{
 		s, branch, "modules",
 	}

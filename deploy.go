@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/yannh/r10k-go/git"
 	"github.com/yannh/r10k-go/puppetfileparser"
 	"log"
@@ -45,44 +46,49 @@ func installPuppetFiles(puppetFiles []*puppetFile, numWorkers int, cache *cache,
 	return nErr
 }
 
-func getPuppetfilesForEnvironments(envs []string, sources map[string]source, cache *cache, moduledir string) []*puppetFile {
-	var puppetFiles []*puppetFile
-	var s source
+func getEnvironments(envNames []string, sources []gitSource) []environment {
+	envs := make([]environment, 0)
 
-	//for _, envName := range cliOpts["<env>"].([]string) {
-	for _, envName := range envs {
-		sourceName := ""
-
-		// Find in which source the environment is
+	for _, envName := range envNames {
+		// Find in which gitSource the environment is
 		// TODO: make deterministic
-		//for name, source := range r10kConfig.Sources {
-		for name, source := range sources {
+		found := false
+		for _, source := range sources {
 			if git.RepoHasRemoteBranch(source.Remote, envName) {
-				sourceName = name
-				s = source
+				envs = append(envs, newEnvironment(source, envName))
+				found = true
 				break
 			}
 		}
-
-		sourceCacheFolder := path.Join(cache.folder, sourceName)
-
-		// Clone if source doesnt exist, fetch otherwise
-		if err := git.RevParse(sourceCacheFolder); err != nil {
-			if err := git.Clone(sources[sourceName].Remote, git.Ref{Branch: envName}, sourceCacheFolder); err != nil {
-				log.Fatalf("%s", err)
-			}
-		} else {
-			git.Fetch(sourceCacheFolder)
+		if found == false {
+			log.Printf("failed to find source for environment %s", envName)
 		}
+	}
 
-		git.Clone(sourceCacheFolder, git.Ref{Branch: envName}, path.Join(sources[sourceName].Basedir, envName))
-		puppetfile := path.Join(sources[sourceName].Basedir, envName, "Puppetfile")
+	fmt.Printf("%+v\n", envs)
+	return envs
+}
 
-		pf := newPuppetFile(puppetfile, environment{s, envName, moduledir})
+func getPuppetFilesForEnvironments(envs []environment, moduledir string, cache *cache) []*puppetFile {
+	puppetFiles := make([]*puppetFile, 0)
+	for _, env := range envs {
+		sourceCacheFolder := path.Join(cache.folder, env.source.Name)
+		env.source.fetch(cache)
+
+		if err := git.Checkout(sourceCacheFolder, env.branch); err != nil {
+			log.Fatal(err)
+		}
+		if err := git.Clone(sourceCacheFolder, git.Ref{Branch: env.branch}, path.Join(env.source.Basedir, env.branch)); err != nil {
+			log.Fatal(err)
+		}
+		puppetfile := path.Join(env.source.Basedir, env.branch, "Puppetfile")
+
+		pf := newPuppetFile(puppetfile, environment{env.source, env.branch, moduledir})
 		if pf == nil {
 			log.Fatalf("no such file or directory %s", puppetfile)
 		}
 		puppetFiles = append(puppetFiles, pf)
 	}
+
 	return puppetFiles
 }

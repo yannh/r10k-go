@@ -10,7 +10,7 @@ import (
 
 type r10kConfig struct {
 	Cachedir string
-	Sources  map[string]source
+	Sources  map[string]gitSource
 }
 
 func newR10kConfig(filename string) (*r10kConfig, error) {
