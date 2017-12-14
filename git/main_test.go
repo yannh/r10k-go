@@ -11,7 +11,11 @@ func TestMain(m *testing.M) {
 	if _, err := os.Stat("test-fixtures/git-repo/git"); err == nil {
 		os.Rename("test-fixtures/git-repo/git", "test-fixtures/git-repo/.git")
 	}
-	os.Exit(m.Run())
+	res := m.Run()
+	if _, err := os.Stat("test-fixtures/git-repo/.git"); err == nil {
+		os.Rename("test-fixtures/git-repo/.git", "test-fixtures/git-repo/git")
+	}
+	os.Exit(res)
 }
 
 func TestCloneSuccess(t *testing.T) {

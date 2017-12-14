@@ -148,7 +148,15 @@ func main() {
 
 	if cliOpts["check"] != false {
 		puppetfile := "./Puppetfile"
+		if cliOpts["--puppetfile"] != nil {
+			puppetfile = cliOpts["--puppetfile"].(string)
+		}
+
 		pf := newPuppetFile(puppetfile, environment{})
+		if pf == nil {
+			log.Fatalf("could not open file: %s", puppetfile)
+
+		}
 		if _, _, err := puppetfileparser.Parse(bufio.NewScanner(pf.File)); err != nil {
 			log.Fatalf("failed parsing %s: %v", puppetfile, err)
 		} else {
@@ -201,7 +209,10 @@ func main() {
 		}
 
 		envs := getEnvironments(cliOpts["<env>"].([]string), sources)
-		puppetFiles := getPuppetFilesForEnvironments(envs, moduledir, cache)
+		puppetFiles := make([]*puppetFile, 0)
+		for _, env := range envs {
+			puppetFiles = append(puppetFiles, getPuppetFileForEnvironment(env, moduledir, cache))
+		}
 
 		os.Exit(installPuppetFiles(puppetFiles, 4, cache, !cliOpts["--no-deps"].(bool)))
 	}

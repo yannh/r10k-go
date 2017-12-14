@@ -1,8 +1,6 @@
 package main
 
 import (
-	"fmt"
-	"github.com/yannh/r10k-go/git"
 	"github.com/yannh/r10k-go/puppetfileparser"
 	"log"
 	"path"
@@ -46,49 +44,16 @@ func installPuppetFiles(puppetFiles []*puppetFile, numWorkers int, cache *cache,
 	return nErr
 }
 
-func getEnvironments(envNames []string, sources []gitSource) []environment {
-	envs := make([]environment, 0)
-
-	for _, envName := range envNames {
-		// Find in which gitSource the environment is
-		// TODO: make deterministic
-		found := false
-		for _, source := range sources {
-			if git.RepoHasRemoteBranch(source.Remote, envName) {
-				envs = append(envs, newEnvironment(source, envName))
-				found = true
-				break
-			}
-		}
-		if found == false {
-			log.Printf("failed to find source for environment %s", envName)
-		}
+func getPuppetFileForEnvironment(env environment, moduledir string, cache *cache) *puppetFile {
+	if env.fetch(cache) != nil {
+		log.Fatal("Failed fetching environment " + env.branch)
 	}
 
-	fmt.Printf("%+v\n", envs)
-	return envs
-}
+	puppetfile := path.Join(env.source.Basedir, env.branch, "Puppetfile")
 
-func getPuppetFilesForEnvironments(envs []environment, moduledir string, cache *cache) []*puppetFile {
-	puppetFiles := make([]*puppetFile, 0)
-	for _, env := range envs {
-		sourceCacheFolder := path.Join(cache.folder, env.source.Name)
-		env.source.fetch(cache)
-
-		if err := git.Checkout(sourceCacheFolder, env.branch); err != nil {
-			log.Fatal(err)
-		}
-		if err := git.Clone(sourceCacheFolder, git.Ref{Branch: env.branch}, path.Join(env.source.Basedir, env.branch)); err != nil {
-			log.Fatal(err)
-		}
-		puppetfile := path.Join(env.source.Basedir, env.branch, "Puppetfile")
-
-		pf := newPuppetFile(puppetfile, environment{env.source, env.branch, moduledir})
-		if pf == nil {
-			log.Fatalf("no such file or directory %s", puppetfile)
-		}
-		puppetFiles = append(puppetFiles, pf)
+	pf := newPuppetFile(puppetfile, environment{env.source, env.branch, moduledir})
+	if pf == nil {
+		log.Fatalf("no such file or directory %s", puppetfile)
 	}
-
-	return puppetFiles
+	return pf
 }

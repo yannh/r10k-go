@@ -29,6 +29,23 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
+@test "should be able to validate a valid Puppetfile" {
+  run r10k-go puppetfile check --puppetfile Puppetfile
+  [ "$status" -eq 0 ]
+}
+
+@test "should be able to validate an invalid Puppetfile" {
+  run r10k-go puppetfile check --puppetfile test-fixtures/Puppetfile-invalid
+  [ "$status" -ne 0 ]
+  [[ "$output" = *"failed parsing Puppetfile"* ]]
+}
+
+@test "should fail validating a non-existing Puppetfile" {
+  run r10k-go puppetfile check --puppetfile test-fixtures/not-a-real-puppetfile
+  [ "$status" -ne 0 ]
+  [[ "$output" = *"could not open file"* ]]
+}
+
 @test "should install a test environment successfully" {
   run r10k-go deploy environment single_git
   [ -f environments-production/single_git/modules/firewall/LICENSE ]
