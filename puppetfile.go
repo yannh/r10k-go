@@ -80,9 +80,9 @@ func (p *puppetFile) Process(drs chan<- downloadRequest, limitToModules ...strin
 		}
 
 		nDownloadRequests++
-		go func() {
+		go func(dr downloadRequest) {
 			drs <- dr
-		}()
+		}(dr)
 	}
 
 	for i := 0; i < nDownloadRequests; i++ {

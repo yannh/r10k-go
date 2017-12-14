@@ -51,16 +51,17 @@ func (m *metadataFile) Process(drs chan<- downloadRequest) error {
 	nDownloadRequests := 0
 	for _, req := range meta.dependencies {
 		nDownloadRequests++
-		go func(req dependency) {
-			dr := downloadRequest{
-				m: &forgeModule{
-					name: req.name,
-				},
-				env:  m.env,
-				done: done,
-			}
+		dr := downloadRequest{
+			m: &forgeModule{
+				name: req.name,
+			},
+			env:  m.env,
+			done: done,
+		}
+
+		go func(dr downloadRequest) {
 			drs <- dr
-		}(req)
+		}(dr)
 	}
 
 	for i := 0; i < nDownloadRequests; i++ {
