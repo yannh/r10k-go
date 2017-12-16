@@ -11,9 +11,10 @@ r10k-go
 
 Usage:
   r10k-go puppetfile install [--moduledir=<PATH>] [--no-deps] [--puppetfile=<PUPPETFILE>] [--workers=<n>]
-  r10k-go puppetfile check [--moduledir=<PATH>] [--no-deps] [--puppetfile=<PUPPETFILE>] [--workers=<n>]
-  r10k-go version
+  r10k-go puppetfile check [--puppetfile=<PUPPETFILE>]
   r10k-go deploy environment <env>... [--workers=<n>]
+  r10k-go deploy module <module>... [--environment=<env>] [--workers=<n>]
+  r10k-go version
   r10k-go -h | --help
   r10k-go --version
 
@@ -53,7 +54,6 @@ A cache is maintained in .cache, git worktrees are used to deploy git repository
 
 * Complex version requirements for forge modules (can only give a specific version) - although only librarian respects this.
 * r10k deploy display
-* r10k deploy module
 * r10k puppetfile purge
 * SVN or local sources
 * probably a lot more...
@@ -66,24 +66,4 @@ Given a correctly setup Go environment, you can go get r10k-go and use the makef
 ~/$ go get github.com/yannh/r10k-go
 ~/$ cd ~/go/src/github.com/yannh/r10k-go/
 ~/go/src/github.com/yannh/r10k-go$ make
-rm -rf .cache modules r10k-go environments test_install_path
-go get -t ./...
-go test -v ./...
-=== RUN   TestParseModuleGit
---- PASS: TestParseModuleGit (0.00s)
-=== RUN   TestParse
---- PASS: TestParse (0.00s)
-PASS
-ok      github.com/yannh/r10k-go        0.005s
-?       github.com/yannh/r10k-go/git    [no test files]
-?       github.com/yannh/r10k-go/gzip   [no test files]
-go vet -v ./...
-go install -race ./...
-bats tests/integration-tests.bats
- ✓ invocation with a nonexistent puppetfile prints an error
- ✓ invocation with test puppetfile succeeds
- ✓ should fail on invalid Puppetfile
- ✓ should support install_path parameter
-
-4 tests, 0 failures
 ```
