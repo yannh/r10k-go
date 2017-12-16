@@ -2,7 +2,6 @@ package git
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -29,12 +28,11 @@ func NewRef(refType uint8, ref string) *Ref {
 		return nil
 	}
 
-	ref2 := sanitize(ref)
-	log.Printf("%s has become %s!", ref, ref2)
+	ref = sanitize(ref)
 
 	return &Ref{
 		RefType: refType,
-		Ref:     ref2,
+		Ref:     ref,
 	}
 }
 

@@ -2,61 +2,74 @@
 
 setup() {
   # We clean modules and cache between each test
-  rm -rf modules modules-test .cache123 test-fixtures/modules environments-production
+  rm -rf modules modules-test .cache123 test-fixtures/modules environments-production test-fixtures/test_install_path
+  ./test-fixtures/create-git-fixtures.sh
 }
 
 @test "invocation with a nonexistent puppetfile prints an error" {
   run r10k-go puppetfile install --puppetfile nonexistent
+  echo echo "test"
   [ "$status" -eq 1 ]
   [[ "$output" = *"no such file or directory"* ]]
 }
 
 @test "invocation with test puppetfile succeeds" {
-  run r10k-go puppetfile install --puppetfile test-fixtures/Puppetfile-simple
+  run git --git-dir test-fixtures/source/.git --work-tree test-fixtures/source/ checkout validpuppetfile
+  run r10k-go puppetfile install --puppetfile test-fixtures/source/Puppetfile
   [ "$status" -eq 0 ]
-  [[ "$output" = *"Downloaded voxpopuli/nginx"* ]]
+  [[ "$output" = *"Downloaded testmodule"* ]]
+  [ -d test-fixtures/source/modules/testmodule/ ]
 }
 
 @test "should fail on invalid Puppetfile" {
-  run r10k-go puppetfile install --puppetfile test-fixtures/Puppetfile-invalid
+  run git --git-dir test-fixtures/source/.git --work-tree test-fixtures/source/ checkout invalidpuppetfile
+  run r10k-go puppetfile install --puppetfile test-fixtures/source/Puppetfile
   [[ "$output" = *"failed parsing Puppetfile"* ]]
   [ "$status" -ne 0 ]
 }
 
 @test "should support install_path parameter" {
-  run r10k-go puppetfile install --puppetfile test-fixtures/Puppetfile-installpath
-  [ -d test-fixtures/test_install_path ]
+  run git --git-dir test-fixtures/source/.git --work-tree test-fixtures/source/ checkout installpath
+  run r10k-go puppetfile install --puppetfile test-fixtures/source/Puppetfile
+  [ -d test-fixtures/source/test_install_path/testmodule ]
   [ "$status" -eq 0 ]
 }
 
-@test "should download module to appropriate folder" {
-  run r10k-go puppetfile install --puppetfile test-fixtures/Puppetfile-nginxv0.7.1 --moduledir modules
-  [[ "$output" = *"Downloaded voxpopuli/nginx"* ]]
-  run git --git-dir test-fixtures/modules/nginx/.git  describe --tags
-  [[ "$output" = *"v0.7.1"* ]]
-  [ -d test-fixtures/modules/nginx/ ]
+@test "should download appropriate version" {
+  run git --git-dir test-fixtures/source/.git --work-tree test-fixtures/source/ checkout installv1
+  run r10k-go puppetfile install --puppetfile test-fixtures/source/Puppetfile
+  [[ "$output" = *"Downloaded testmodule"* ]]
+  [ -d test-fixtures/source/modules/testmodule/ ]
   [ "$status" -eq 0 ]
+  run git --git-dir test-fixtures/source/modules/testmodule/.git  describe --tags
+  [[ "$output" = *"v1"* ]]
 
-  run r10k-go puppetfile install --puppetfile test-fixtures/Puppetfile-nginxv0.9.0 --moduledir modules
-  [[ "$output" = *"Downloaded voxpopuli/nginx"* ]]
-  run git --git-dir test-fixtures/modules/nginx/.git  describe --tags
-  [[ "$output" = *"v0.9.0"* ]]
+  run git --git-dir test-fixtures/source/.git --work-tree test-fixtures/source/ checkout validpuppetfile
+  run r10k-go puppetfile install --puppetfile test-fixtures/source/Puppetfile
+  [[ "$output" = *"Downloaded testmodule"* ]]
+  [ "$status" -eq 0 ]
+  run git --git-dir test-fixtures/source/modules/testmodule/.git  describe --tags
+  [[ "$output" = *"v3"* ]]
 
-  run r10k-go puppetfile install --puppetfile test-fixtures/Puppetfile-nginxv0.7.1 --moduledir modules
-  [[ "$output" = *"Downloaded voxpopuli/nginx"* ]]
-  run git --git-dir test-fixtures/modules/nginx/.git  describe --tags
-  [[ "$output" = *"v0.7.1"* ]]
-
+  run git --git-dir test-fixtures/source/.git --work-tree test-fixtures/source/ checkout installv1
+  run r10k-go puppetfile install --puppetfile test-fixtures/source/Puppetfile
+  [ -d test-fixtures/source/modules/testmodule/ ]
+  [ "$status" -eq 0 ]
+  run git --git-dir test-fixtures/source/modules/testmodule/.git  describe --tags
+  [[ "$output" = *"v1"* ]]
 }
+
 
 @test "should be able to validate a valid Puppetfile" {
-  run r10k-go puppetfile check --puppetfile Puppetfile
+  run git --git-dir test-fixtures/source/.git --work-tree test-fixtures/source/ checkout validpuppetfile
+  run r10k-go puppetfile check --puppetfile test-fixtures/source/Puppetfile
   [[ "$output" = *"Syntax OK"* ]]
   [ "$status" -eq 0 ]
 }
 
-@test "should be able to validate an invalid Puppetfile" {
-  run r10k-go puppetfile check --puppetfile test-fixtures/Puppetfile-invalid
+@test "should fail validating an invalid Puppetfile" {
+  run git --git-dir test-fixtures/source/.git --work-tree test-fixtures/source/ checkout invalidpuppetfile
+  run r10k-go puppetfile check --puppetfile test-fixtures/source/Puppetfile
   [[ "$output" = *"failed parsing Puppetfile"* ]]
   [ "$status" -ne 0 ]
 }
