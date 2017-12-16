@@ -211,7 +211,7 @@ func main() {
 		if _, _, err := puppetfileparser.Parse(bufio.NewScanner(pf.File)); err != nil {
 			log.Fatalf("failed parsing %s: %v", puppetfile, err)
 		} else {
-			log.Printf("file parsed correctly: %s", puppetfile)
+			log.Printf("Syntax OK: %s", puppetfile)
 			os.Exit(0)
 		}
 	}

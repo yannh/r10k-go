@@ -29,21 +29,42 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
+@test "should download module to appropriate folder" {
+  run r10k-go puppetfile install --puppetfile test-fixtures/Puppetfile-nginxv0.7.1 --moduledir modules
+  [[ "$output" = *"Downloaded voxpopuli/nginx"* ]]
+  run git --git-dir test-fixtures/modules/nginx/.git  describe --tags
+  [[ "$output" = *"v0.7.1"* ]]
+  [ -d test-fixtures/modules/nginx/ ]
+  [ "$status" -eq 0 ]
+
+  run r10k-go puppetfile install --puppetfile test-fixtures/Puppetfile-nginxv0.9.0 --moduledir modules
+  [[ "$output" = *"Downloaded voxpopuli/nginx"* ]]
+  run git --git-dir test-fixtures/modules/nginx/.git  describe --tags
+  [[ "$output" = *"v0.9.0"* ]]
+
+  run r10k-go puppetfile install --puppetfile test-fixtures/Puppetfile-nginxv0.7.1 --moduledir modules
+  [[ "$output" = *"Downloaded voxpopuli/nginx"* ]]
+  run git --git-dir test-fixtures/modules/nginx/.git  describe --tags
+  [[ "$output" = *"v0.7.1"* ]]
+
+}
+
 @test "should be able to validate a valid Puppetfile" {
   run r10k-go puppetfile check --puppetfile Puppetfile
+  [[ "$output" = *"Syntax OK"* ]]
   [ "$status" -eq 0 ]
 }
 
 @test "should be able to validate an invalid Puppetfile" {
   run r10k-go puppetfile check --puppetfile test-fixtures/Puppetfile-invalid
-  [ "$status" -ne 0 ]
   [[ "$output" = *"failed parsing Puppetfile"* ]]
+  [ "$status" -ne 0 ]
 }
 
 @test "should fail validating a non-existing Puppetfile" {
   run r10k-go puppetfile check --puppetfile test-fixtures/not-a-real-puppetfile
-  [ "$status" -ne 0 ]
   [[ "$output" = *"could not open file"* ]]
+  [ "$status" -ne 0 ]
 }
 
 @test "should install a test environment successfully" {

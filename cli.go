@@ -10,7 +10,7 @@ func cli() map[string]interface{} {
 
 Usage:
   r10k-go puppetfile install [--moduledir=<PATH>] [--no-deps] [--puppetfile=<PUPPETFILE>] [--workers=<n>]
-  r10k-go puppetfile check [--moduledir=<PATH>] [--no-deps] [--puppetfile=<PUPPETFILE>] [--workers=<n>]
+  r10k-go puppetfile check [--puppetfile=<PUPPETFILE>]
   r10k-go deploy environment <env>... [--workers=<n>]
   r10k-go deploy module <module>... [--environment=<env>] [--workers=<n>]
   r10k-go version

@@ -74,6 +74,7 @@ func WorktreeAdd(directory string, ref Ref, to string) error {
 	var cmd *exec.Cmd
 	var cwd string
 	var err error
+	var output []byte
 
 	if _, err := os.Stat(path.Join(directory, ".git")); err != nil {
 		return fmt.Errorf("can not create worktree from %s: folder is not a git repository", directory)
@@ -93,9 +94,14 @@ func WorktreeAdd(directory string, ref Ref, to string) error {
 		cmdLineParameters += " " + ref.Branch
 	}
 
+	if ref.Tag != "" {
+		cmdLineParameters += " " + ref.Tag
+	}
+
+	fmt.Println("Running git " + cmdLineParameters)
 	cmd = exec.Command("git", strings.Split(cmdLineParameters, " ")...)
 	cmd.Dir = directory
-	if output, err := cmd.CombinedOutput(); err != nil {
+	if output, err = cmd.CombinedOutput(); err != nil {
 		err = fmt.Errorf("failed running git %s: %s", cmdLineParameters, string(output))
 	}
 
