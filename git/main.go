@@ -2,16 +2,40 @@ package git
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path"
+	"regexp"
 	"strings"
 )
 
+const TypeRef = uint8(0)
+const TypeTag = uint8(1)
+const TypeBranch = uint8(2)
+
 type Ref struct {
-	Ref    string
-	Tag    string
-	Branch string
+	RefType uint8
+	Ref     string
+}
+
+func sanitize(s string) string {
+	reg := regexp.MustCompile("[^a-zA-Z0-9_.]")
+	return reg.ReplaceAllString(s, "")
+}
+
+func NewRef(refType uint8, ref string) *Ref {
+	if refType > TypeBranch {
+		return nil
+	}
+
+	ref2 := sanitize(ref)
+	log.Printf("%s has become %s!", ref, ref2)
+
+	return &Ref{
+		RefType: refType,
+		Ref:     ref2,
+	}
 }
 
 func RevParse(path string) error {
@@ -20,14 +44,16 @@ func RevParse(path string) error {
 	return cmd.Run()
 }
 
-func Clone(repo string, ref Ref, to string) error {
+func Clone(repo string, ref *Ref, to string) error {
 	cmdParameters := "clone"
-	if ref.Branch != "" {
-		cmdParameters += " -b " + ref.Branch
+	if ref != nil && ref.RefType == TypeBranch {
+		cmdParameters += " -b " + ref.Ref
 	}
+
 	cmdParameters += " " + repo + " " + to
 
 	cmd := exec.Command("git", strings.Split(cmdParameters, " ")...)
+	fmt.Println("Running git " + cmdParameters)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		err = fmt.Errorf("failed running git %s: %s", cmdParameters, string(output))
 		return err
@@ -64,13 +90,14 @@ func Checkout(path string, branch string) error {
 
 func RepoHasRemoteBranch(origin string, branch string) bool {
 	cmd := exec.Command("git", "ls-remote", "--exit-code", "-h", origin, branch)
+	fmt.Println("Running git ls-remote --exit-code -h" + origin + " " + branch)
 	if err := cmd.Run(); err != nil {
 		return false
 	}
 	return true
 }
 
-func WorktreeAdd(directory string, ref Ref, to string) error {
+func WorktreeAdd(directory string, ref *Ref, to string) error {
 	var cmd *exec.Cmd
 	var cwd string
 	var err error
@@ -86,16 +113,15 @@ func WorktreeAdd(directory string, ref Ref, to string) error {
 	}
 
 	cmdLineParameters := "worktree add --detach -f " + to
-	if ref.Ref != "" {
-		cmdLineParameters += " " + ref.Ref
-	}
 
-	if ref.Branch != "" {
-		cmdLineParameters += " " + ref.Branch
-	}
+	if ref != nil {
+		switch ref.RefType {
+		case TypeBranch:
+			cmdLineParameters += " " + ref.Ref
 
-	if ref.Tag != "" {
-		cmdLineParameters += " " + ref.Tag
+		case TypeTag, TypeRef:
+			cmdLineParameters += " " + ref.Ref
+		}
 	}
 
 	fmt.Println("Running git " + cmdLineParameters)

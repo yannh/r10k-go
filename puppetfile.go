@@ -25,15 +25,22 @@ func newPuppetFile(pf string, env environment) *puppetFile {
 func (p *puppetFile) toTypedModule(module map[string]string) puppetModule {
 	switch module["type"] {
 	case "git":
+		var ref *git.Ref
+
+		switch {
+		case module["ref"] != "":
+			ref = git.NewRef(git.TypeRef, module["ref"])
+		case module["tag"] != "":
+			ref = git.NewRef(git.TypeTag, module["tag"])
+		case module["branch"] != "":
+			ref = git.NewRef(git.TypeRef, module["branch"])
+		}
+
 		return &gitModule{
 			name:        module["name"],
 			repoURL:     module["repoUrl"],
 			installPath: module["installPath"],
-			want: git.Ref{
-				Ref:    module["ref"],
-				Tag:    module["tag"],
-				Branch: module["branch"],
-			},
+			want:        ref,
 		}
 
 	case "github_tarball":

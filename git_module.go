@@ -18,7 +18,7 @@ type gitModule struct {
 	installPath string
 	cacheFolder string
 	folder      string
-	want        git.Ref
+	want        *git.Ref
 }
 
 func (m *gitModule) getName() string { return m.name }
@@ -32,28 +32,33 @@ func (m *gitModule) isUpToDate(folder string) bool {
 	}
 
 	// folder exists, but no version specified, anything goes
-	if m.want.Ref == "" && m.want.Branch == "" && m.want.Tag == "" {
+	if m.want == nil {
 		return true
-	}
-
-	if m.want.Ref != "" {
-		commit, err := m.currentCommit(folder)
-		if err != nil {
-			return false
-		}
-		return m.want.Ref == commit
 	}
 
 	cmd := exec.Command("git", "show", "-s", "--pretty=%d", "HEAD")
 	cmd.Dir = folder
-	output, _ := cmd.Output()
-
-	if m.want.Branch != "" {
-		return strings.Contains(string(output), "origin/"+m.want.Branch)
+	output, err := cmd.Output()
+	if err != nil {
+		return false
 	}
 
-	if m.want.Tag != "" {
-		return strings.Contains(string(output), "tag: "+m.want.Tag)
+	switch m.want.RefType {
+	case git.TypeRef:
+		commit, err := m.currentCommit(folder)
+		if err != nil {
+			return false
+		}
+
+		return strings.Contains(string(output), "origin/"+m.want.Ref) ||
+			strings.Contains(string(output), "tag: "+m.want.Ref) ||
+			m.want.Ref == commit
+
+	case git.TypeBranch:
+		return strings.Contains(string(output), "origin/"+m.want.Ref)
+
+	case git.TypeTag:
+		return strings.Contains(string(output), "tag: "+m.want.Ref)
 	}
 
 	return false
@@ -111,7 +116,7 @@ func (m *gitModule) updateCache() error {
 		}
 	}
 
-	if err := git.Clone(m.repoURL, git.Ref{}, m.cacheFolder); err != nil {
+	if err := git.Clone(m.repoURL, nil, m.cacheFolder); err != nil {
 		return &downloadError{error: err, retryable: true}
 	}
 

@@ -46,7 +46,7 @@ func (s *gitSource) fetch(c *cache) error {
 
 	// Clone if gitSource doesnt exist, fetch otherwise
 	if err := git.RevParse(s.location); err != nil {
-		if err := git.Clone(s.Remote, git.Ref{}, s.location); err != nil {
+		if err := git.Clone(s.Remote, nil, s.location); err != nil {
 			log.Fatalf("%s", err)
 		}
 	} else {
