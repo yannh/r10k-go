@@ -116,7 +116,7 @@ func (m *gitModule) updateCache() error {
 		}
 	}
 
-	if err := git.Clone(m.repoURL, nil, m.cacheFolder); err != nil {
+	if err := git.Clone(m.repoURL, m.cacheFolder); err != nil {
 		return &downloadError{error: err, retryable: true}
 	}
 

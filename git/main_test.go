@@ -19,7 +19,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestCloneSuccess(t *testing.T) {
-	if err := Clone("test-fixtures/git-repo/", NewRef(TypeBranch, "master"), "tmp/git-repo"); err != nil {
+	if err := Clone("test-fixtures/git-repo/", "tmp/git-repo"); err != nil {
 		fmt.Print(err)
 		t.Error(err.Error())
 	}
@@ -34,14 +34,8 @@ func TestCloneSuccess(t *testing.T) {
 
 func TestCloneNonRepo(t *testing.T) {
 	var err error
-	if err = Clone("test-fixtures/not-a-git-repo/", NewRef(TypeBranch, "master"), "tmp/git-repo"); err == nil {
+	if err = Clone("test-fixtures/not-a-git-repo/", "tmp/git-repo"); err == nil {
 		t.Error("cloning a non existing repository should fail")
-	}
-}
-
-func TestCloneIncorrectRef(t *testing.T) {
-	if err := Clone("test-fixtures/git-repo/", NewRef(TypeBranch, "not-a-branch"), "tmp/git-repo"); err == nil {
-		t.Error("cloning incorrect reference should fail")
 	}
 }
 

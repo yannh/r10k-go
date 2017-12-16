@@ -64,10 +64,10 @@ func (env *environment) fetch(cache *cache) error {
 		return err
 	}
 
-	if err := git.Checkout(env.source.location, env.branch); err != nil {
+	if err := git.Checkout(env.source.location, git.NewRef(git.TypeBranch, env.branch)); err != nil {
 		return err
 	}
-	if err := git.Clone(env.source.location, git.NewRef(git.TypeBranch, env.branch), path.Join(env.source.Basedir, env.branch)); err != nil {
+	if err := git.Clone(env.source.location, path.Join(env.source.Basedir, env.branch)); err != nil {
 		return err
 	}
 

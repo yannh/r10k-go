@@ -39,16 +39,13 @@ func NewRef(refType uint8, ref string) *Ref {
 }
 
 func RevParse(path string) error {
-	cmd := exec.Command("git", "rev-parse", "--git-dir")
+	cmd := exec.Command("git", "rev-parse")
 	cmd.Dir = path
 	return cmd.Run()
 }
 
-func Clone(repo string, ref *Ref, to string) error {
+func Clone(repo string, to string) error {
 	cmdParameters := "clone"
-	if ref != nil && ref.RefType == TypeBranch {
-		cmdParameters += " -b " + ref.Ref
-	}
 
 	cmdParameters += " " + repo + " " + to
 
@@ -75,10 +72,15 @@ func Fetch(path string) error {
 	return err
 }
 
-func Checkout(path string, branch string) error {
+func Checkout(path string, ref *Ref) error {
 	var err error
 
-	cmd := exec.Command("git", "checkout", branch)
+	if ref == nil {
+		return nil
+	}
+
+	fmt.Println("Running git checkout " + ref.Ref)
+	cmd := exec.Command("git", "checkout", ref.Ref)
 	cmd.Dir = path
 
 	if output, err := cmd.CombinedOutput(); err != nil {
