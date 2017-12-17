@@ -34,6 +34,15 @@ setup() {
   [ "$status" -eq 0 ]
 }
 
+@test "should support branch with special characters" {
+  run git --git-dir test-fixtures/source/.git --work-tree test-fixtures/source/ checkout specialcharsinreference
+  run r10k-go puppetfile install --puppetfile test-fixtures/source/Puppetfile
+  [ -d test-fixtures/source/modules/testmodule ]
+  [ "$status" -eq 0 ]
+  run git --git-dir test-fixtures/source/modules/testmodule/.git  describe --tags
+  [[ "$output" = *"v4"* ]]
+}
+
 @test "should support moduledir" {
   run git --git-dir test-fixtures/source/.git --work-tree test-fixtures/source/ checkout validpuppetfile
   run r10k-go puppetfile install --puppetfile test-fixtures/source/Puppetfile --moduledir my_modules

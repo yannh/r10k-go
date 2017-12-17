@@ -18,8 +18,8 @@ type Ref struct {
 	Ref     string
 }
 
-func sanitize(s string) string {
-	reg := regexp.MustCompile("[^a-zA-Z0-9_.]")
+func sanitizeShellChars(s string) string {
+	reg := regexp.MustCompile("[']")
 	return reg.ReplaceAllString(s, "")
 }
 
@@ -28,7 +28,7 @@ func NewRef(refType uint8, ref string) *Ref {
 		return nil
 	}
 
-	ref = sanitize(ref)
+	ref = sanitizeShellChars(ref)
 
 	return &Ref{
 		RefType: refType,

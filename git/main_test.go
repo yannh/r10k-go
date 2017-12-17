@@ -46,7 +46,7 @@ func TestRepoHasRemoteBranchFailure(t *testing.T) {
 }
 
 func TestWorktreeAdd(t *testing.T) {
-	if err := WorktreeAdd("test-fixtures/git-repo/", NewRef(TypeBranch, "master"), "tmp/git-repo"); err != nil {
+	if err := WorktreeAdd("test-fixtures/git-repo/", nil, "tmp/git-repo"); err != nil {
 		t.Error(err)
 	}
 
@@ -57,7 +57,7 @@ func TestWorktreeAdd(t *testing.T) {
 }
 
 func TestWorktreeAddIncorrectPath(t *testing.T) {
-	if err := WorktreeAdd("test-fixtures/not-a-git-repo/", NewRef(TypeBranch, "master"), "tmp/git-repo"); err == nil {
+	if err := WorktreeAdd("test-fixtures/not-a-git-repo/", nil, "tmp/git-repo"); err == nil {
 		t.Error(err)
 	}
 }

@@ -32,6 +32,12 @@ function create_testmodule {
     git commit -m "v3"
     git tag -a v3 -m "v3"
 
+    git checkout -b 'special$branch'
+    echo "TestModule v4" > Readme
+    git add Readme
+    git commit -m "v4"
+    git tag -a v4 -m "v4"
+
     popd
 }
 
@@ -71,6 +77,11 @@ EOF
     git commit -m "installpath"
     git checkout master
 
+    git checkout -b "specialcharsinreference"
+    echo "mod \"testmodule\", :git=>\"$MODULEROOT/testmodule\", :branch=>\"special\$branch\"" > Puppetfile
+    git add Puppetfile
+    git commit -m "installpath"
+    git checkout master
 
     popd
 }

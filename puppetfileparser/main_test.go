@@ -85,11 +85,6 @@ mod 'puppetlabs-stdlib',
 }
 
 func TestParseMalformedPuppetfiles(t *testing.T) {
-	type e struct {
-		name    string
-		version string
-	}
-
 	testCases := []string{
 		`
 forge "https://forgeapi.puppetlabs.com"
