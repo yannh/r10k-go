@@ -83,3 +83,51 @@ mod 'puppetlabs-stdlib',
 		}
 	}
 }
+
+func TestParseMalformedPuppetfiles(t *testing.T) {
+	type e struct {
+		name    string
+		version string
+	}
+
+	testCases := []string{
+		`
+forge "https://forgeapi.puppetlabs.com"
+
+mod 'puppetlabs-stdlib',
+  :git => "git://github.com/puppetlabs/puppetlabs-stdlib.git",
+  :tag => "1.0",
+  :branch => "featurebranch"
+`,
+		`
+forge "https://forgeapi.puppetlabs.com"
+
+mod 'puppetlabs-stdlib',
+  :git => "git://github.com/puppetlabs/puppetlabs-stdlib.git",
+  :ref => "12345678",
+  :branch => "featurebranch"
+`,
+		`
+forge "https://forgeapi.puppetlabs.com"
+
+mod 'puppetlabs-stdlib',
+  :git => "git://github.com/puppetlabs/puppetlabs-stdlib.git",
+  :ref => "12345678",
+  :tag => "1.0"
+`,
+		`
+forge "https://forgeapi.puppetlabs.com"
+
+mod 'puppetlabs-stdlib'
+	:git => "git://github.com/puppetlabs/puppetlabs-stdlib.git"
+`,
+		`mod "ntp" "1.0.3"`,
+	}
+
+	for _, c := range testCases {
+		_, _, err := Parse(bufio.NewScanner(strings.NewReader(c)))
+		if _, ok := err.(ErrMalformedPuppetfile); !ok {
+			t.Errorf("expecting malformedPuppetFile error, got: %v.\n", err)
+		}
+	}
+}

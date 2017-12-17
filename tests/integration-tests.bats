@@ -8,7 +8,6 @@ setup() {
 
 @test "invocation with a nonexistent puppetfile prints an error" {
   run r10k-go puppetfile install --puppetfile nonexistent
-  echo echo "test"
   [ "$status" -eq 1 ]
   [[ "$output" = *"no such file or directory"* ]]
 }
@@ -33,6 +32,14 @@ setup() {
   run r10k-go puppetfile install --puppetfile test-fixtures/source/Puppetfile
   [ -d test-fixtures/source/test_install_path/testmodule ]
   [ "$status" -eq 0 ]
+}
+
+@test "should support moduledir" {
+  run git --git-dir test-fixtures/source/.git --work-tree test-fixtures/source/ checkout validpuppetfile
+  run r10k-go puppetfile install --puppetfile test-fixtures/source/Puppetfile --moduledir my_modules
+  [ "$status" -eq 0 ]
+  [[ "$output" = *"Downloaded testmodule"* ]]
+  [ -d test-fixtures/source/my_modules/testmodule/ ]
 }
 
 @test "should download appropriate version" {

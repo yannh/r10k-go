@@ -2,7 +2,6 @@ package puppetfileparser
 
 import (
 	"bufio"
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -10,6 +9,9 @@ import (
 type ErrMalformedPuppetfile struct{ S string }
 
 func (e ErrMalformedPuppetfile) Error() string { return e.S }
+func NewErrMalformedPuppetfile(s string, params ...interface{}) error {
+	return ErrMalformedPuppetfile{S: fmt.Sprintf(s, params)}
+}
 
 func parseParameter(line string) string {
 	if strings.Contains(line, "=>") {
@@ -24,16 +26,22 @@ func parseModule(line string) (map[string]string, error) {
 
 	line = strings.TrimSpace(line)
 	if !strings.HasPrefix(line, "mod") {
-		return nil, errors.New("Error: Module definition not starting with mod")
+		return nil, NewErrMalformedPuppetfile("Error: Module definition not starting with mod")
 	}
 
 	for index, part := range strings.Split(line, ",") {
 		part = strings.TrimSpace(part)
 		switch {
 		case strings.HasPrefix(part, "mod"):
-			module["name"] = strings.FieldsFunc(part, func(r rune) bool {
+			quoted_elements := strings.FieldsFunc(part, func(r rune) bool {
 				return r == '\'' || r == '"'
-			})[1]
+			})
+			// Several quoted entities, not separated by a coma, eg: mod "ntp" "1.0.3"`
+			if len(quoted_elements) > 2 {
+				return nil, NewErrMalformedPuppetfile("error parsing line %s - missing coma?", part)
+			}
+
+			module["name"] = quoted_elements[1]
 
 			// A line will contain : if it's in the form :tag: value or :tag => value
 			// if not then it must be a version string, and no further parameter is allowed
@@ -56,7 +64,7 @@ func parseModule(line string) (map[string]string, error) {
 			module["installPath"] = parseParameter(part)
 
 		case strings.HasPrefix(part, ":tag"):
-			module["tag"] = parseParameter(part) // FIXME check if already set
+			module["tag"] = parseParameter(part)
 
 		case strings.HasPrefix(part, ":ref"):
 			module["ref"] = parseParameter(part)
@@ -65,7 +73,7 @@ func parseModule(line string) (map[string]string, error) {
 			module["branch"] = parseParameter(part)
 
 		default:
-			fmt.Printf("Unsupported parameter %s\n", part)
+			return nil, NewErrMalformedPuppetfile("unsupported parameter %s", part)
 		}
 	}
 
@@ -110,10 +118,17 @@ func Parse(s *bufio.Scanner) (modules []map[string]string, opts map[string]strin
 				if err != nil {
 					return nil, nil, err
 				}
+				_, hasRef := module["ref"]
+				_, hasBranch := module["branch"]
+				_, hasTag := module["tag"]
+				if (hasRef && hasBranch) || (hasRef && hasTag) || (hasBranch && hasTag) {
+					return nil, nil, NewErrMalformedPuppetfile("can only set one of ref, branch, tag for module %s", module["name"])
+				}
+
 				modules = append(modules, module)
 
 			default:
-				return nil, nil, fmt.Errorf("failed parsing Puppetfile, error around line: %d", lineNumber)
+				return nil, nil, NewErrMalformedPuppetfile("failed parsing Puppetfile, error around line: %d", lineNumber)
 			}
 
 			block = ""

@@ -15,19 +15,23 @@ function create_testmodule {
     pushd $PWD
     mkdir -p $MODULEROOT/testmodule
     cd $MODULEROOT/testmodule
+
     echo "TestModule v1" > Readme
     git init
     git add Readme
     git commit -m "v1"
     git tag -a v1 -m "v1"
+
     echo "TestModule v2" > Readme
     git add Readme
     git commit -m "v2"
     git tag -a v2 -m "v2"
+
     echo "TestModule v3" > Readme
     git add Readme
     git commit -m "v3"
     git tag -a v3 -m "v3"
+
     popd
 }
 
