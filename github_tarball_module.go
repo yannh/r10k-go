@@ -17,9 +17,7 @@ type githubTarballModule struct {
 	name        string
 	repoName    string
 	version     string
-	cacheFolder string
 	installPath string
-	folder      string
 	modulePath  string
 }
 
@@ -63,12 +61,12 @@ func (m *githubTarballModule) isUpToDate(folder string) bool {
 	return v == m.version
 }
 
-func (m *githubTarballModule) downloadToCache(r io.Reader) error {
-	if err := os.MkdirAll(path.Join(m.cacheFolder), 0755); err != nil {
+func (m *githubTarballModule) downloadToCache(r io.Reader, cacheFolder string) error {
+	if err := os.MkdirAll(path.Join(cacheFolder), 0755); err != nil {
 		return err
 	}
 
-	out, err := os.Create(path.Join(m.cacheFolder, m.version+".tar.gz"))
+	out, err := os.Create(path.Join(cacheFolder, m.version+".tar.gz"))
 	if err != nil {
 		return err
 	}
@@ -128,23 +126,23 @@ func (m *githubTarballModule) download(to string, cache *cache) *downloadError {
 	var err error
 	var url string
 
-	m.cacheFolder = path.Join(cache.folder, m.hash())
+	cacheFolder := path.Join(cache.folder, m.hash())
 
 	if url, err = m.downloadURL(); err != nil {
 		return &downloadError{err, true}
 	}
 
-	if _, err = os.Stat(path.Join(m.cacheFolder, m.version+".tar.gz")); err != nil {
+	if _, err = os.Stat(path.Join(cacheFolder, m.version+".tar.gz")); err != nil {
 		forgeArchive, err := http.Get(url)
 		if err != nil {
 			return &downloadError{fmt.Errorf("Failed retrieving %s", url), true}
 		}
 		defer forgeArchive.Body.Close()
 
-		m.downloadToCache(forgeArchive.Body)
+		m.downloadToCache(forgeArchive.Body, cacheFolder)
 	}
 
-	r, err := os.Open(path.Join(m.cacheFolder, m.version+".tar.gz"))
+	r, err := os.Open(path.Join(cacheFolder, m.version+".tar.gz"))
 	if err != nil {
 		return &downloadError{err, false}
 	}

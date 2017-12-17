@@ -21,7 +21,7 @@ func newCache(cacheFolder string) (*cache, error) {
 	return &cache{folder: cacheFolder, Locks: make(map[interface{}]*sync.Mutex)}, nil
 }
 
-func (cache *cache) lockModule(o interface{}) {
+func (cache *cache) lockModule(o interface{}) { // FIXME that was a bad improvement, we want to lock on target folder name
 	cache.Lock()
 	if _, ok := cache.Locks[o]; !ok {
 		cache.Locks[o] = new(sync.Mutex)

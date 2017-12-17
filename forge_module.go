@@ -14,10 +14,8 @@ import (
 )
 
 type forgeModule struct {
-	name        string
-	version     string
-	path        string
-	cacheFolder string
+	name    string
+	version string
 }
 
 func (m *forgeModule) getInstallPath() string {
@@ -41,12 +39,12 @@ type moduleReleases struct {
 	}
 }
 
-func (m *forgeModule) downloadToCache(r io.Reader) error {
-	if err := os.MkdirAll(m.cacheFolder, 0755); err != nil {
-		return fmt.Errorf("failed creating folder %s: %v", m.cacheFolder, err)
+func (m *forgeModule) downloadToCache(r io.Reader, cacheFolder string) error {
+	if err := os.MkdirAll(cacheFolder, 0755); err != nil {
+		return fmt.Errorf("failed creating folder %s: %v", cacheFolder, err)
 	}
 
-	cacheFile := path.Join(m.cacheFolder, m.version+".tar.gz")
+	cacheFile := path.Join(cacheFolder, m.version+".tar.gz")
 	out, err := os.Create(cacheFile)
 	if err != nil {
 		return fmt.Errorf("failed creating cache file %s: %v", cacheFile, err)
@@ -138,27 +136,27 @@ func (m *forgeModule) download(to string, cache *cache) *downloadError {
 	var err error
 	var url string
 
-	m.cacheFolder = path.Join(cache.folder, m.hash())
+	cacheFolder := path.Join(cache.folder, m.hash())
 
 	forgeURL := "https://forgeapi.puppetlabs.com:443/"
 	if url, err = m.getArchiveURL(); err != nil {
 		return &downloadError{err, true}
 	}
 
-	if _, err = os.Stat(path.Join(m.cacheFolder, m.version+".tar.gz")); err != nil {
+	if _, err = os.Stat(path.Join(cacheFolder, m.version+".tar.gz")); err != nil {
 		forgeArchive, err := http.Get(forgeURL + url)
 		if err != nil {
 			return &downloadError{fmt.Errorf("could not retrieve %s", forgeURL+url), true}
 		}
 		defer forgeArchive.Body.Close()
 
-		if err := m.downloadToCache(forgeArchive.Body); err != nil {
+		if err := m.downloadToCache(forgeArchive.Body, cacheFolder); err != nil {
 			return &downloadError{fmt.Errorf("could not retrieve %s", forgeURL+url), true}
 		}
 	}
-	r, err := os.Open(path.Join(m.cacheFolder, m.version+".tar.gz"))
+	r, err := os.Open(path.Join(cacheFolder, m.version+".tar.gz"))
 	if err != nil {
-		return &downloadError{fmt.Errorf("could not write to %s", path.Join(m.cacheFolder, m.version+".tar.gz")), false}
+		return &downloadError{fmt.Errorf("could not write to %s", path.Join(cacheFolder, m.version+".tar.gz")), false}
 	}
 	defer r.Close()
 

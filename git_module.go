@@ -13,12 +13,10 @@ import (
 )
 
 type gitModule struct {
-	name        string
-	repoURL     string
-	installPath string
-	cacheFolder string
-	folder      string
-	want        *git.Ref
+	name        string   // puppetlabs-apache
+	repoURL     string   // https://github.com/puppetlabs/puppetlabs-apache.git
+	installPath string   // if specified per module, otherwise empty string
+	want        *git.Ref // The tag, branch or ref
 }
 
 func (m *gitModule) getName() string { return m.name }
@@ -102,21 +100,21 @@ func (m *gitModule) currentCommit(folder string) (string, error) {
 	return version, nil
 }
 
-func (m *gitModule) updateCache() error {
-	if _, err := os.Stat(m.cacheFolder); err == nil {
-		if _, err := os.Stat(path.Join(m.cacheFolder, ".git")); err != nil {
+func (m *gitModule) updateCache(cacheFolder string) error {
+	if _, err := os.Stat(cacheFolder); err == nil {
+		if _, err := os.Stat(path.Join(cacheFolder, ".git")); err != nil {
 			// cache folder exists, but is not a GIT Repo - we remove it and redownload
-			os.RemoveAll(m.cacheFolder)
+			os.RemoveAll(cacheFolder)
 		} else {
 			// cache exists and is a git repository, we try to update it
-			if err := git.Fetch(m.cacheFolder); err != nil {
+			if err := git.Fetch(cacheFolder); err != nil {
 				return &downloadError{error: err, retryable: true}
 			}
 			return nil
 		}
 	}
 
-	if err := git.Clone(m.repoURL, m.cacheFolder); err != nil {
+	if err := git.Clone(m.repoURL, cacheFolder); err != nil {
 		return &downloadError{error: err, retryable: true}
 	}
 
@@ -126,9 +124,7 @@ func (m *gitModule) updateCache() error {
 func (m *gitModule) download(to string, cache *cache) *downloadError {
 	var err error
 
-	m.cacheFolder = path.Join(cache.folder, m.hash())
-
-	if err = m.updateCache(); err != nil {
+	if err = m.updateCache(path.Join(cache.folder, m.hash())); err != nil {
 		return &downloadError{error: fmt.Errorf("failed updating cache: %v", err), retryable: true}
 	}
 
@@ -136,7 +132,7 @@ func (m *gitModule) download(to string, cache *cache) *downloadError {
 		return &downloadError{error: fmt.Errorf("failed creating folder: %v", to), retryable: false}
 	}
 
-	if err = git.WorktreeAdd(m.cacheFolder, m.want, to); err != nil {
+	if err = git.WorktreeAdd(path.Join(cache.folder, m.hash()), m.want, to); err != nil {
 		return &downloadError{error: fmt.Errorf("failed creating subtree: %v", err), retryable: true}
 	}
 
