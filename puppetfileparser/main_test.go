@@ -86,37 +86,31 @@ mod 'puppetlabs-stdlib',
 
 func TestParseMalformedPuppetfiles(t *testing.T) {
 	testCases := []string{
-		`
-forge "https://forgeapi.puppetlabs.com"
 
-mod 'puppetlabs-stdlib',
+		// tag & branch defined
+		`mod 'puppetlabs-stdlib',
   :git => "git://github.com/puppetlabs/puppetlabs-stdlib.git",
   :tag => "1.0",
-  :branch => "featurebranch"
-`,
-		`
-forge "https://forgeapi.puppetlabs.com"
-
-mod 'puppetlabs-stdlib',
+  :branch => "featurebranch"`,
+		// ref & branch defined
+		`mod 'puppetlabs-stdlib',
   :git => "git://github.com/puppetlabs/puppetlabs-stdlib.git",
   :ref => "12345678",
-  :branch => "featurebranch"
-`,
-		`
-forge "https://forgeapi.puppetlabs.com"
+  :branch => "featurebranch"`,
 
-mod 'puppetlabs-stdlib',
+		// ref & tag defined
+		`mod 'puppetlabs-stdlib',
   :git => "git://github.com/puppetlabs/puppetlabs-stdlib.git",
   :ref => "12345678",
-  :tag => "1.0"
-`,
-		`
-forge "https://forgeapi.puppetlabs.com"
+  :tag => "1.0"`,
 
+		// Missing comma
+		`forge "https://forgeapi.puppetlabs.com"
 mod 'puppetlabs-stdlib'
 	:git => "git://github.com/puppetlabs/puppetlabs-stdlib.git"
 `,
-		`mod "ntp" "1.0.3"`,
+
+		`mod "ntp" "1.0.3"`, // Missing comma
 	}
 
 	for _, c := range testCases {

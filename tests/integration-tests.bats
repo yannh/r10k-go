@@ -6,6 +6,12 @@ setup() {
   ./test-fixtures/create-git-fixtures.sh
 }
 
+@test "should be able to tell its version" {
+  run r10k-go version
+  [ "$status" -eq 0 ]
+  [[ "$output" = "0.0.1" ]]
+}
+
 @test "invocation with a nonexistent puppetfile prints an error" {
   run r10k-go puppetfile install --puppetfile nonexistent
   [ "$status" -eq 1 ]

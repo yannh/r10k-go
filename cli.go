@@ -19,7 +19,7 @@ Usage:
 
 Options:
   -h --help                   Show this screen.
-  --modulesPath=<PATH>        Path to the modules folder
+  --modulesdir=<PATH>        Path to the modules folder
   --no-deps                   Skip downloading modules dependencies
   --puppetFile=<PUPPETFILE>   Path to the modules folder
   --version                   Displays the version.

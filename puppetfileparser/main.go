@@ -37,7 +37,7 @@ func parseModule(line string) (map[string]string, error) {
 				return r == '\'' || r == '"'
 			})
 			// Several quoted entities, not separated by a coma, eg: mod "ntp" "1.0.3"`
-			if len(quoted_elements) > 2 {
+			if len(quoted_elements) > 2 || len(quoted_elements)%2 != 0 {
 				return nil, NewErrMalformedPuppetfile("error parsing line %s - missing coma?", part)
 			}
 
