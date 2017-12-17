@@ -18,7 +18,6 @@ type githubTarballModule struct {
 	repoName    string
 	version     string
 	installPath string
-	modulePath  string
 }
 
 type ghModuleRelease []struct {
