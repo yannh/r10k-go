@@ -39,7 +39,7 @@ func (m *GithubTarballModule) Name() string {
 	return m.name
 }
 
-func (m *GithubTarballModule) GetInstallPath() string {
+func (m *GithubTarballModule) InstallPath() string {
 	return m.installPath
 }
 

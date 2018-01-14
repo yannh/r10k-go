@@ -26,7 +26,7 @@ func NewForgeModule(name, version string) *ForgeModule {
 	}
 }
 
-func (m *ForgeModule) GetInstallPath() string {
+func (m *ForgeModule) InstallPath() string {
 	return ""
 }
 

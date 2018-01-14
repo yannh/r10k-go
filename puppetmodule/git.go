@@ -30,7 +30,7 @@ func NewGitModule(name, repoURL, installPath string, want *git.Ref) *GitModule {
 }
 
 func (m *GitModule) Name() string { return m.name }
-func (m *GitModule) GetInstallPath() string {
+func (m *GitModule) InstallPath() string {
 	return m.installPath
 }
 

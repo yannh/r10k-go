@@ -116,8 +116,8 @@ func downloadModules(drs chan downloadRequest, cache *cache, downloadDeps bool, 
 		cache.lockModule(dr.m)
 
 		modulesFolder := path.Join(dr.env.source.Basedir, dr.env.branch, dr.env.modulesFolder)
-		if dr.m.GetInstallPath() != "" {
-			modulesFolder = path.Join(dr.env.source.Basedir, dr.env.branch, dr.m.GetInstallPath())
+		if dr.m.InstallPath() != "" {
+			modulesFolder = path.Join(dr.env.source.Basedir, dr.env.branch, dr.m.InstallPath())
 		}
 
 		to := path.Join(modulesFolder, folderFromModuleName(dr.m.Name()))
