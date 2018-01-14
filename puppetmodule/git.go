@@ -5,23 +5,33 @@ import (
 	"crypto/sha1"
 	"encoding/base64"
 	"fmt"
-	"github.com/yannh/r10k-go/git"
 	"os"
 	"os/exec"
 	"path"
 	"strings"
+
+	"github.com/yannh/r10k-go/git"
 )
 
 type GitModule struct {
-	Name        string   // puppetlabs-apache
-	RepoURL     string   // https://github.com/puppetlabs/puppetlabs-apache.git
-	InstallPath string   // if specified per module, otherwise empty string
-	Want        *git.Ref // The tag, branch or ref
+	name        string   // puppetlabs-apache
+	repoURL     string   // https://github.com/puppetlabs/puppetlabs-apache.git
+	installPath string   // if specified per module, otherwise empty string
+	want        *git.Ref // The tag, branch or ref
 }
 
-func (m *GitModule) GetName() string { return m.Name }
+func NewGitModule(name, repoURL, installPath string, want *git.Ref) *GitModule {
+	return &GitModule{
+		name:        name,
+		repoURL:     repoURL,
+		installPath: installPath,
+		want:        want,
+	}
+}
+
+func (m *GitModule) Name() string { return m.name }
 func (m *GitModule) GetInstallPath() string {
-	return m.InstallPath
+	return m.installPath
 }
 
 func (m *GitModule) IsUpToDate(folder string) bool {
@@ -30,7 +40,7 @@ func (m *GitModule) IsUpToDate(folder string) bool {
 	}
 
 	// folder exists, but no version specified, anything goes
-	if m.Want == nil {
+	if m.want == nil {
 		return true
 	}
 
@@ -41,22 +51,22 @@ func (m *GitModule) IsUpToDate(folder string) bool {
 		return false
 	}
 
-	switch m.Want.RefType {
+	switch m.want.RefType {
 	case git.TypeRef:
 		commit, err := m.currentCommit(folder)
 		if err != nil {
 			return false
 		}
 
-		return strings.Contains(string(output), "origin/"+m.Want.Ref) ||
-			strings.Contains(string(output), "tag: "+m.Want.Ref) ||
-			m.Want.Ref == commit
+		return strings.Contains(string(output), "origin/"+m.want.Ref) ||
+			strings.Contains(string(output), "tag: "+m.want.Ref) ||
+			m.want.Ref == commit
 
 	case git.TypeBranch:
-		return strings.Contains(string(output), "origin/"+m.Want.Ref)
+		return strings.Contains(string(output), "origin/"+m.want.Ref)
 
 	case git.TypeTag:
-		return strings.Contains(string(output), "tag: "+m.Want.Ref)
+		return strings.Contains(string(output), "tag: "+m.want.Ref)
 	}
 
 	return false
@@ -64,7 +74,7 @@ func (m *GitModule) IsUpToDate(folder string) bool {
 
 func (m *GitModule) hash() string {
 	hasher := sha1.New()
-	hasher.Write([]byte(m.RepoURL))
+	hasher.Write([]byte(m.repoURL))
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
@@ -114,7 +124,7 @@ func (m *GitModule) updateCache(cacheFolder string) error {
 		}
 	}
 
-	if err := git.Clone(m.RepoURL, cacheFolder); err != nil {
+	if err := git.Clone(m.repoURL, cacheFolder); err != nil {
 		return &DownloadError{error: err, Retryable: true}
 	}
 
@@ -132,7 +142,7 @@ func (m *GitModule) Download(to string, cache string) *DownloadError {
 		return &DownloadError{error: fmt.Errorf("failed creating folder: %v", to), Retryable: false}
 	}
 
-	if err = git.WorktreeAdd(path.Join(cache, m.hash()), m.Want, to); err != nil {
+	if err = git.WorktreeAdd(path.Join(cache, m.hash()), m.want, to); err != nil {
 		return &DownloadError{error: fmt.Errorf("failed creating subtree: %v", err), Retryable: true}
 	}
 

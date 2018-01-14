@@ -5,10 +5,10 @@ type DownloadError struct {
 	Retryable bool
 }
 
-// puppetModule is implemented by ForgeModule, gitModule, githubTarballModule, ....
+// PuppetModule is implemented by ForgeModule, gitModule, githubTarballModule, ....
 type PuppetModule interface {
 	IsUpToDate(folder string) bool
-	GetName() string
+	Name() string
 	Download(to string, cache string) *DownloadError
 	GetInstallPath() string
 }

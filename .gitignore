@@ -7,3 +7,4 @@ bin
 .cache*
 .librarian
 environments*
+git/test-fixtures/git-repo/*

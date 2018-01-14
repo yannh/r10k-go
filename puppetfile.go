@@ -2,10 +2,11 @@ package main
 
 import (
 	"bufio"
+	"os"
+
 	"github.com/yannh/r10k-go/git"
 	"github.com/yannh/r10k-go/puppetfileparser"
 	"github.com/yannh/r10k-go/puppetmodule"
-	"os"
 )
 
 type puppetFile struct {
@@ -37,25 +38,23 @@ func (p *puppetFile) toTypedModule(module map[string]string) puppetmodule.Puppet
 			ref = git.NewRef(git.TypeRef, module["branch"])
 		}
 
-		return &puppetmodule.GitModule{
-			Name:        module["name"],
-			RepoURL:     module["repoUrl"],
-			InstallPath: module["installPath"],
-			Want:        ref,
-		}
+		return puppetmodule.NewGitModule(
+			module["name"],
+			module["repoUrl"],
+			module["installPath"],
+			ref,
+		)
 
 	case "github_tarball":
-		return &puppetmodule.GithubTarballModule{
-			Name:     module["name"],
-			RepoName: module["repoName"],
-			Version:  module["version"],
-		}
+		return puppetmodule.NewGithubTarballModule(
+			module["name"],
+			module["repoName"],
+			module["version"],
+			"",
+		)
 
 	default:
-		return &puppetmodule.ForgeModule{
-			Name:    module["name"],
-			Version: module["version"],
-		}
+		return puppetmodule.NewForgeModule(module["name"], module["version"])
 	}
 }
 

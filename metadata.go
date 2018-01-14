@@ -3,9 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/yannh/r10k-go/puppetmodule"
 	"io/ioutil"
 	"os"
+
+	"github.com/yannh/r10k-go/puppetmodule"
 )
 
 type dependency struct {
@@ -51,9 +52,7 @@ func (m *metadataFile) Process(drs chan<- downloadRequest) error {
 
 	for _, req := range meta.dependencies {
 		dr := downloadRequest{
-			m: &puppetmodule.ForgeModule{
-				Name: req.name,
-			},
+			m:    puppetmodule.NewForgeModule(req.name, ""),
 			env:  m.env,
 			done: done,
 		}

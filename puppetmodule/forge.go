@@ -5,17 +5,25 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/yannh/r10k-go/gzip"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
+
+	"github.com/yannh/r10k-go/gzip"
 )
 
 type ForgeModule struct {
-	Name    string
-	Version string
+	name    string
+	version string
+}
+
+func NewForgeModule(name, version string) *ForgeModule {
+	return &ForgeModule{
+		name:    name,
+		version: version,
+	}
 }
 
 func (m *ForgeModule) GetInstallPath() string {
@@ -24,12 +32,12 @@ func (m *ForgeModule) GetInstallPath() string {
 
 func (m *ForgeModule) hash() string {
 	hasher := sha1.New()
-	hasher.Write([]byte(m.Name))
+	hasher.Write([]byte(m.name))
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
-func (m *ForgeModule) GetName() string {
-	return m.Name
+func (m *ForgeModule) Name() string {
+	return m.name
 }
 
 type moduleReleases struct {
@@ -44,7 +52,7 @@ func (m *ForgeModule) downloadToCache(r io.Reader, cacheFolder string) error {
 		return fmt.Errorf("failed creating folder %s: %v", cacheFolder, err)
 	}
 
-	cacheFile := path.Join(cacheFolder, m.Version+".tar.gz")
+	cacheFile := path.Join(cacheFolder, m.version+".tar.gz")
 	out, err := os.Create(cacheFile)
 	if err != nil {
 		return fmt.Errorf("failed creating cache file %s: %v", cacheFile, err)
@@ -61,7 +69,7 @@ func (m *ForgeModule) IsUpToDate(folder string) bool {
 	_, err := os.Stat(folder)
 	if err != nil {
 		return false
-	} else if m.Version == "" {
+	} else if m.version == "" {
 		// Module is present and no Version specified...
 		return true
 	}
@@ -75,7 +83,7 @@ func (m *ForgeModule) IsUpToDate(folder string) bool {
 	}
 	v := string(version)
 
-	return v == m.Version
+	return v == m.version
 }
 
 func (m *ForgeModule) getArchiveURL() (string, error) {
@@ -113,20 +121,20 @@ func (m *ForgeModule) getArchiveURL() (string, error) {
 
 	// If Version is not specified, we pick the latest Version
 	index := 0
-	if m.Version != "" {
+	if m.version != "" {
 		versionFound := false
 		for i, result := range mr.Results {
-			if m.Version == result.Version {
+			if m.version == result.Version {
 				versionFound = true
 				index = i
 				break
 			}
 		}
 		if !versionFound {
-			return "", &DownloadError{fmt.Errorf("Could not find Version %s for module %s", m.Version, m.GetName()), false}
+			return "", &DownloadError{fmt.Errorf("Could not find Version %s for module %s", m.version, m.GetName()), false}
 		}
 	} else {
-		m.Version = mr.Results[0].Version
+		m.version = mr.Results[0].Version
 	}
 
 	return mr.Results[index].FileURI, nil
@@ -143,7 +151,7 @@ func (m *ForgeModule) Download(to string, cache string) *DownloadError {
 		return &DownloadError{err, true}
 	}
 
-	if _, err = os.Stat(path.Join(cacheFolder, m.Version+".tar.gz")); err != nil {
+	if _, err = os.Stat(path.Join(cacheFolder, m.version+".tar.gz")); err != nil {
 		forgeArchive, err := http.Get(forgeURL + url)
 		if err != nil {
 			return &DownloadError{fmt.Errorf("could not retrieve %s", forgeURL+url), true}
@@ -154,9 +162,9 @@ func (m *ForgeModule) Download(to string, cache string) *DownloadError {
 			return &DownloadError{fmt.Errorf("could not retrieve %s", forgeURL+url), true}
 		}
 	}
-	r, err := os.Open(path.Join(cacheFolder, m.Version+".tar.gz"))
+	r, err := os.Open(path.Join(cacheFolder, m.version+".tar.gz"))
 	if err != nil {
-		return &DownloadError{fmt.Errorf("could not write to %s", path.Join(cacheFolder, m.Version+".tar.gz")), false}
+		return &DownloadError{fmt.Errorf("could not write to %s", path.Join(cacheFolder, m.version+".tar.gz")), false}
 	}
 	defer r.Close()
 
@@ -170,7 +178,7 @@ func (m *ForgeModule) Download(to string, cache string) *DownloadError {
 		return &DownloadError{fmt.Errorf("could not create file %s", versionFile), false}
 	}
 	defer f.Close()
-	f.WriteString(m.Version)
+	f.WriteString(m.version)
 
 	return nil
 }

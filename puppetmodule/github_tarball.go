@@ -5,19 +5,20 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/yannh/r10k-go/gzip"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
+
+	"github.com/yannh/r10k-go/gzip"
 )
 
 type GithubTarballModule struct {
-	Name        string
-	RepoName    string
-	Version     string
-	InstallPath string
+	name        string
+	repoName    string
+	version     string
+	installPath string
 }
 
 type ghModuleRelease []struct {
@@ -25,17 +26,26 @@ type ghModuleRelease []struct {
 	TarballURL string `json:"tarball_url"`
 }
 
-func (m *GithubTarballModule) GetName() string {
-	return m.Name
+func NewGithubTarballModule(name, repoName, version, installPath string) *GithubTarballModule {
+	return &GithubTarballModule{
+		name:        name,
+		repoName:    repoName,
+		version:     version,
+		installPath: installPath,
+	}
+}
+
+func (m *GithubTarballModule) Name() string {
+	return m.name
 }
 
 func (m *GithubTarballModule) GetInstallPath() string {
-	return m.InstallPath
+	return m.installPath
 }
 
 func (m *GithubTarballModule) hash() string {
 	hasher := sha1.New()
-	hasher.Write([]byte(m.Name))
+	hasher.Write([]byte(m.name))
 	return base64.URLEncoding.EncodeToString(hasher.Sum(nil))
 }
 
@@ -43,7 +53,7 @@ func (m *GithubTarballModule) IsUpToDate(folder string) bool {
 	_, err := os.Stat(folder)
 	if err != nil {
 		return false
-	} else if m.Version == "" {
+	} else if m.version == "" {
 		// Module is present and no version specified...
 		return true
 	}
@@ -57,7 +67,7 @@ func (m *GithubTarballModule) IsUpToDate(folder string) bool {
 	}
 	v := string(version)
 
-	return v == m.Version
+	return v == m.version
 }
 
 func (m *GithubTarballModule) downloadToCache(r io.Reader, cacheFolder string) error {
@@ -65,7 +75,7 @@ func (m *GithubTarballModule) downloadToCache(r io.Reader, cacheFolder string) e
 		return err
 	}
 
-	out, err := os.Create(path.Join(cacheFolder, m.Version+".tar.gz"))
+	out, err := os.Create(path.Join(cacheFolder, m.version+".tar.gz"))
 	if err != nil {
 		return err
 	}
@@ -79,7 +89,7 @@ func (m *GithubTarballModule) downloadToCache(r io.Reader, cacheFolder string) e
 func (m *GithubTarballModule) downloadURL() (string, error) {
 	ghAPIRoot := "https://api.github.com"
 
-	url := ghAPIRoot + "/repos/" + m.RepoName + "/tags"
+	url := ghAPIRoot + "/repos/" + m.repoName + "/tags"
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -102,20 +112,20 @@ func (m *GithubTarballModule) downloadURL() (string, error) {
 	}
 
 	index := 0
-	if m.Version != "" {
+	if m.version != "" {
 		versionFound := false
 		for i, result := range gr {
-			if m.Version == result.Name {
+			if m.version == result.Name {
 				versionFound = true
 				index = i
 				break
 			}
 		}
 		if !versionFound {
-			return "", &DownloadError{fmt.Errorf("Could not find version %s for module %s", m.Version, m.GetName()), false}
+			return "", &DownloadError{fmt.Errorf("Could not find version %s for module %s", m.version, m.GetName()), false}
 		}
 	} else {
-		m.Version = gr[0].Name
+		m.version = gr[0].Name
 	}
 
 	return gr[index].TarballURL, nil
@@ -131,7 +141,7 @@ func (m *GithubTarballModule) Download(to string, cache string) *DownloadError {
 		return &DownloadError{err, true}
 	}
 
-	if _, err = os.Stat(path.Join(cacheFolder, m.Version+".tar.gz")); err != nil {
+	if _, err = os.Stat(path.Join(cacheFolder, m.version+".tar.gz")); err != nil {
 		forgeArchive, err := http.Get(url)
 		if err != nil {
 			return &DownloadError{fmt.Errorf("Failed retrieving %s", url), true}
@@ -141,7 +151,7 @@ func (m *GithubTarballModule) Download(to string, cache string) *DownloadError {
 		m.downloadToCache(forgeArchive.Body, cacheFolder)
 	}
 
-	r, err := os.Open(path.Join(cacheFolder, m.Version+".tar.gz"))
+	r, err := os.Open(path.Join(cacheFolder, m.version+".tar.gz"))
 	if err != nil {
 		return &DownloadError{err, false}
 	}
@@ -158,7 +168,7 @@ func (m *GithubTarballModule) Download(to string, cache string) *DownloadError {
 		return &DownloadError{fmt.Errorf("Failed creating file %s", versionFile), false}
 	}
 	defer r.Close()
-	r.WriteString(m.Version)
+	r.WriteString(m.version)
 
 	return nil
 }
