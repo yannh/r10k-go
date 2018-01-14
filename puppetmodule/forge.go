@@ -91,7 +91,7 @@ func (m *ForgeModule) getArchiveURL() (string, error) {
 	APIVersion := "v3"
 
 	url := forgeURL + APIVersion + "/releases?" +
-		"module=" + m.GetName() +
+		"module=" + m.Name() +
 		"&sort_by=release_date" +
 		"&limit=100"
 
@@ -116,7 +116,7 @@ func (m *ForgeModule) getArchiveURL() (string, error) {
 	if err != nil {
 		return "", &DownloadError{err, true}
 	} else if len(mr.Results) == 0 {
-		return "", &DownloadError{fmt.Errorf("Could not find module %s", m.GetName()), false}
+		return "", &DownloadError{fmt.Errorf("Could not find module %s", m.Name()), false}
 	}
 
 	// If Version is not specified, we pick the latest Version
@@ -131,7 +131,7 @@ func (m *ForgeModule) getArchiveURL() (string, error) {
 			}
 		}
 		if !versionFound {
-			return "", &DownloadError{fmt.Errorf("Could not find Version %s for module %s", m.version, m.GetName()), false}
+			return "", &DownloadError{fmt.Errorf("Could not find Version %s for module %s", m.version, m.Name()), false}
 		}
 	} else {
 		m.version = mr.Results[0].Version

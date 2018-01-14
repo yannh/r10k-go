@@ -122,7 +122,7 @@ func (m *GithubTarballModule) downloadURL() (string, error) {
 			}
 		}
 		if !versionFound {
-			return "", &DownloadError{fmt.Errorf("Could not find version %s for module %s", m.version, m.GetName()), false}
+			return "", &DownloadError{fmt.Errorf("Could not find version %s for module %s", m.version, m.Name()), false}
 		}
 	} else {
 		m.version = gr[0].Name

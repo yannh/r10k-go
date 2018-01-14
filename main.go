@@ -6,9 +6,6 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/yannh/r10k-go/git"
-	"github.com/yannh/r10k-go/puppetfileparser"
-	"github.com/yannh/r10k-go/puppetmodule"
 	"log"
 	"os"
 	"path"
@@ -16,6 +13,10 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/yannh/r10k-go/git"
+	"github.com/yannh/r10k-go/puppetfileparser"
+	"github.com/yannh/r10k-go/puppetmodule"
 )
 
 type downloadResult struct {
@@ -119,11 +120,11 @@ func downloadModules(drs chan downloadRequest, cache *cache, downloadDeps bool, 
 			modulesFolder = path.Join(dr.env.source.Basedir, dr.env.branch, dr.m.GetInstallPath())
 		}
 
-		to := path.Join(modulesFolder, folderFromModuleName(dr.m.GetName()))
+		to := path.Join(modulesFolder, folderFromModuleName(dr.m.Name()))
 
 		dres := downloadModule(dr.m, to, cache)
 		for i := 1; dres.err != nil && dres.err.Retryable && i < maxTries; i++ {
-			log.Printf("failed downloading %s: %v... Retrying\n", dr.m.GetName(), dres.err)
+			log.Printf("failed downloading %s: %v... Retrying\n", dr.m.Name(), dres.err)
 			time.Sleep(retryDelay)
 			dres = downloadModule(dr.m, to, cache)
 		}
@@ -145,10 +146,10 @@ func downloadModules(drs chan downloadRequest, cache *cache, downloadDeps bool, 
 			}
 
 			if !dres.skipped {
-				log.Println("Downloaded " + dr.m.GetName() + " to " + to)
+				log.Println("Downloaded " + dr.m.Name() + " to " + to)
 			}
 		} else {
-			log.Printf("failed downloading %s to %s: %v. Giving up!\n", dr.m.GetName(), to, dres.err)
+			log.Printf("failed downloading %s to %s: %v. Giving up!\n", dr.m.Name(), to, dres.err)
 			errors++
 		}
 

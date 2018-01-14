@@ -84,7 +84,7 @@ func (m *GitModule) currentCommit(folder string) (string, error) {
 	worktreeFolder := ""
 
 	if gitFile, err = os.Open(path.Join(folder, ".git")); err != nil {
-		return "", fmt.Errorf("Error getting current commit for %s", m.GetName())
+		return "", fmt.Errorf("Error getting current commit for %s", m.Name())
 	}
 
 	defer gitFile.Close()
@@ -99,7 +99,7 @@ func (m *GitModule) currentCommit(folder string) (string, error) {
 	}
 
 	if headFile, err = os.Open(path.Join(worktreeFolder, "HEAD")); err != nil {
-		return "", fmt.Errorf("failed getting current commit for %s", m.GetName())
+		return "", fmt.Errorf("failed getting current commit for %s", m.Name())
 	}
 	defer headFile.Close()
 
