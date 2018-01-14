@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"github.com/yannh/r10k-go/git"
 	"github.com/yannh/r10k-go/puppetfileparser"
+	"github.com/yannh/r10k-go/puppetmodule"
 	"log"
 	"os"
 	"path"
@@ -17,26 +18,13 @@ import (
 	"time"
 )
 
-// puppetModule is implemented by forgeModule, gitModule, githubTarballModule, ....
-type puppetModule interface {
-	isUpToDate(folder string) bool
-	getName() string
-	download(to string, cache *cache) *downloadError
-	getInstallPath() string
-}
-
-type downloadError struct {
-	error
-	retryable bool
-}
-
 type downloadResult struct {
-	err     *downloadError
+	err     *puppetmodule.DownloadError
 	skipped bool
 }
 
 type downloadRequest struct {
-	m    puppetModule
+	m    puppetmodule.PuppetModule
 	env  environment
 	done chan bool
 }
@@ -102,8 +90,8 @@ func folderFromModuleName(moduleName string) string {
 	return splitPath[len(splitPath)-1]
 }
 
-func downloadModule(m puppetModule, to string, cache *cache) downloadResult {
-	if m.isUpToDate(to) {
+func downloadModule(m puppetmodule.PuppetModule, to string, cache *cache) downloadResult {
+	if m.IsUpToDate(to) {
 		return downloadResult{err: nil, skipped: true}
 	}
 
@@ -111,7 +99,7 @@ func downloadModule(m puppetModule, to string, cache *cache) downloadResult {
 		log.Fatalf("Error removing folder: %s", to)
 	}
 
-	if derr := m.download(to, cache); derr != nil {
+	if derr := m.Download(to, cache.folder); derr != nil {
 		return downloadResult{err: derr, skipped: false}
 	}
 
@@ -127,15 +115,15 @@ func downloadModules(drs chan downloadRequest, cache *cache, downloadDeps bool, 
 		cache.lockModule(dr.m)
 
 		modulesFolder := path.Join(dr.env.source.Basedir, dr.env.branch, dr.env.modulesFolder)
-		if dr.m.getInstallPath() != "" {
-			modulesFolder = path.Join(dr.env.source.Basedir, dr.env.branch, dr.m.getInstallPath())
+		if dr.m.GetInstallPath() != "" {
+			modulesFolder = path.Join(dr.env.source.Basedir, dr.env.branch, dr.m.GetInstallPath())
 		}
 
-		to := path.Join(modulesFolder, folderFromModuleName(dr.m.getName()))
+		to := path.Join(modulesFolder, folderFromModuleName(dr.m.GetName()))
 
 		dres := downloadModule(dr.m, to, cache)
-		for i := 1; dres.err != nil && dres.err.retryable && i < maxTries; i++ {
-			log.Printf("failed downloading %s: %v... Retrying\n", dr.m.getName(), dres.err)
+		for i := 1; dres.err != nil && dres.err.Retryable && i < maxTries; i++ {
+			log.Printf("failed downloading %s: %v... Retrying\n", dr.m.GetName(), dres.err)
 			time.Sleep(retryDelay)
 			dres = downloadModule(dr.m, to, cache)
 		}
@@ -157,10 +145,10 @@ func downloadModules(drs chan downloadRequest, cache *cache, downloadDeps bool, 
 			}
 
 			if !dres.skipped {
-				log.Println("Downloaded " + dr.m.getName() + " to " + to)
+				log.Println("Downloaded " + dr.m.GetName() + " to " + to)
 			}
 		} else {
-			log.Printf("failed downloading %s to %s: %v. Giving up!\n", dr.m.getName(), to, dres.err)
+			log.Printf("failed downloading %s to %s: %v. Giving up!\n", dr.m.GetName(), to, dres.err)
 			errors++
 		}
 
@@ -187,10 +175,16 @@ func main() {
 	}
 
 	r10kFile := "r10k.yml"
-	r10kConfig, err := newR10kConfig(r10kFile)
+	rf, err := os.Open(r10kFile)
+	if err != nil {
+		log.Fatalf("could not open %s: %v", r10kFile, err)
+	}
+
+	r10kConfig, err := parseR10kConfig(rf)
 	if err != nil {
 		log.Fatalf("Error parsing r10k configuration file %s: %v", r10kFile, err)
 	}
+	rf.Close()
 
 	cacheDir := ".cache"
 	if r10kConfig.Cachedir != "" {

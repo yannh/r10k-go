@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/yannh/r10k-go/puppetmodule"
 	"io/ioutil"
 	"os"
 )
@@ -50,8 +51,8 @@ func (m *metadataFile) Process(drs chan<- downloadRequest) error {
 
 	for _, req := range meta.dependencies {
 		dr := downloadRequest{
-			m: &forgeModule{
-				name: req.name,
+			m: &puppetmodule.ForgeModule{
+				Name: req.name,
 			},
 			env:  m.env,
 			done: done,

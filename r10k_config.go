@@ -4,22 +4,11 @@ import (
 	"bytes"
 	"gopkg.in/yaml.v2"
 	"io"
-	"log"
-	"os"
 )
 
 type r10kConfig struct {
 	Cachedir string
 	Sources  map[string]gitSource
-}
-
-func newR10kConfig(filename string) (*r10kConfig, error) {
-	f, err := os.Open(filename)
-	if err != nil {
-		log.Fatalf("could not open %s: %v", filename, err)
-	}
-
-	return parseR10kConfig(f)
 }
 
 func parseR10kConfig(r io.Reader) (*r10kConfig, error) {

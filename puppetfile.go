@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"github.com/yannh/r10k-go/git"
 	"github.com/yannh/r10k-go/puppetfileparser"
+	"github.com/yannh/r10k-go/puppetmodule"
 	"os"
 )
 
@@ -22,7 +23,7 @@ func newPuppetFile(pf string, env environment) *puppetFile {
 	return &puppetFile{File: f, filename: pf, env: env}
 }
 
-func (p *puppetFile) toTypedModule(module map[string]string) puppetModule {
+func (p *puppetFile) toTypedModule(module map[string]string) puppetmodule.PuppetModule {
 	switch module["type"] {
 	case "git":
 		var ref *git.Ref
@@ -36,24 +37,24 @@ func (p *puppetFile) toTypedModule(module map[string]string) puppetModule {
 			ref = git.NewRef(git.TypeRef, module["branch"])
 		}
 
-		return &gitModule{
-			name:        module["name"],
-			repoURL:     module["repoUrl"],
-			installPath: module["installPath"],
-			want:        ref,
+		return &puppetmodule.GitModule{
+			Name:        module["name"],
+			RepoURL:     module["repoUrl"],
+			InstallPath: module["installPath"],
+			Want:        ref,
 		}
 
 	case "github_tarball":
-		return &githubTarballModule{
-			name:     module["name"],
-			repoName: module["repoName"],
-			version:  module["version"],
+		return &puppetmodule.GithubTarballModule{
+			Name:     module["name"],
+			RepoName: module["repoName"],
+			Version:  module["version"],
 		}
 
 	default:
-		return &forgeModule{
-			name:    module["name"],
-			version: module["version"],
+		return &puppetmodule.ForgeModule{
+			Name:    module["name"],
+			Version: module["version"],
 		}
 	}
 }
