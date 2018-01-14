@@ -17,6 +17,7 @@ import (
 	"github.com/yannh/r10k-go/git"
 	"github.com/yannh/r10k-go/puppetfileparser"
 	"github.com/yannh/r10k-go/puppetmodule"
+	"github.com/yannh/r10k-go/puppetsource"
 )
 
 type downloadResult struct {
@@ -72,7 +73,7 @@ func getPuppetFileForEnvironment(env environment, moduledir string, cache *cache
 		log.Fatal("Failed fetching environment " + env.branch)
 	}
 
-	puppetfile := path.Join(env.source.Basedir, env.branch, "Puppetfile")
+	puppetfile := path.Join(env.source.Basedir(), env.branch, "Puppetfile")
 
 	pf := newPuppetFile(puppetfile, environment{env.source, env.branch, moduledir})
 	if pf == nil {
@@ -115,9 +116,9 @@ func downloadModules(drs chan downloadRequest, cache *cache, downloadDeps bool, 
 	for dr := range drs {
 		cache.lockModule(dr.m)
 
-		modulesFolder := path.Join(dr.env.source.Basedir, dr.env.branch, dr.env.modulesFolder)
+		modulesFolder := path.Join(dr.env.source.Basedir(), dr.env.branch, dr.env.modulesFolder)
 		if dr.m.InstallPath() != "" {
-			modulesFolder = path.Join(dr.env.source.Basedir, dr.env.branch, dr.m.InstallPath())
+			modulesFolder = path.Join(dr.env.source.Basedir(), dr.env.branch, dr.m.InstallPath())
 		}
 
 		to := path.Join(modulesFolder, folderFromModuleName(dr.m.Name()))
@@ -233,7 +234,7 @@ func main() {
 		if cliOpts["--moduledir"] != nil {
 			moduledir = cliOpts["--moduledir"].(string)
 		}
-		pf := newPuppetFile(puppetfile, environment{gitSource{Basedir: path.Dir(puppetfile), prefix: "", Remote: ""}, "", moduledir})
+		pf := newPuppetFile(puppetfile, environment{puppetsource.NewGitSource("", "", path.Dir(puppetfile), "", ""), "", moduledir})
 		if pf == nil {
 			log.Fatalf("no such file or directory %s", puppetfile)
 		}
@@ -248,13 +249,7 @@ func main() {
 			moduledir = cliOpts["--moduledir"].(string)
 		}
 
-		sources := make([]gitSource, 0)
-		for sName, s := range r10kConfig.Sources {
-			s.Name = sName
-			sources = append(sources, s)
-		}
-
-		envs := getEnvironments(cliOpts["<env>"].([]string), sources)
+		envs := getEnvironments(cliOpts["<env>"].([]string), r10kConfig.Sources)
 		puppetFiles := make([]*puppetFile, 0)
 		for _, env := range envs {
 			puppetFiles = append(puppetFiles, getPuppetFileForEnvironment(env, moduledir, cache))
@@ -264,11 +259,11 @@ func main() {
 	}
 
 	if cliOpts["deploy"] == true && cliOpts["module"] == true {
-		for sourceName, s := range r10kConfig.Sources { // TODO verify sourceName is usable as a directory name
-			git.Fetch(path.Join(cache.folder, sourceName))
+		for _, s := range r10kConfig.Sources { // TODO verify sourceName is usable as a directory name
+			git.Fetch(path.Join(cache.folder, s.Remote()))
 
-			for _, env := range s.deployedEnvironments() {
-				if pf := newPuppetFile(path.Join(s.Basedir, env.branch, "Puppetfile"), env); pf != nil {
+			for _, env := range DeployedEnvironments(s) {
+				if pf := newPuppetFile(path.Join(s.Basedir(), env.branch, "Puppetfile"), env); pf != nil {
 					puppetFiles = append(puppetFiles, pf)
 				}
 			}
